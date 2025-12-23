@@ -1,5 +1,6 @@
 // When using Winston for logging, avoid calling `process.exit()`,
-// else it may cause issues with pending log writes
+// else it may cause issues with pending log writes;
+// see https://github.com/winstonjs/winston/issues/228
 
 import winston from "winston";
 import colors from "@colors/colors/safe.js";
@@ -7,11 +8,11 @@ import { LEVEL, MESSAGE } from "triple-beam";
 
 import * as defaultConfig from "./config.js";
 
-// Uses singleton pattern for logger instance
+// Use singleton pattern for logger instance
 let logger = null;
 let config = defaultConfig;
 
-// Modified from NPM defaults at
+// Extended from NPM defaults at
 // https://github.com/winstonjs/winston?tab=readme-ov-file#logging-levels
 const levels = {
   error: 0,
@@ -48,6 +49,7 @@ const consoleFormat = winston.format.combine(
   ),
 );
 
+/** Create and configure a Winston logger instance. */
 export function createLogger(options = {}) {
   config = { ...config, ...options };
   logger = winston.createLogger({
@@ -85,6 +87,7 @@ export function createLogger(options = {}) {
   return logger;
 }
 
+/** Get the logger instance for use. */
 export function getLogger() {
   if (!logger) {
     logger = createLogger(defaultConfig);
@@ -95,7 +98,7 @@ export function getLogger() {
   return logger;
 }
 
-// Special function to handle progress messages, to the console only.
+/** Log a progress message that overwrites itself on the console. */
 export function progress(message) {
   if (
     !config.quiet &&
@@ -111,6 +114,9 @@ export function progress(message) {
   }
 }
 
+/** Add a newline after progress messages,
+ * before printing log messages with the logger.
+ */
 export function progressEnd() {
   if (
     !config.quiet &&
