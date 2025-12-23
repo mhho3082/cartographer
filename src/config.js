@@ -1,17 +1,14 @@
 // https://stackoverflow.com/a/62892482
-import { fileURLToPath } from "url";
-import { dirname } from "path";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 // == Fetcher Settings ==
 
 // Timeout for HTTP requests, in milliseconds.
 export const requestTimeout = 10 * 1000;
-
-// Maximum redirects to follow for a single URL.
-export const maxRedirects = 5;
 
 // Whether to check external links for validity.
 // This is state of the --external option.
@@ -34,6 +31,14 @@ export const badUrlRegexes = {
   "SSH URI scheme is not allowed": /^ssh:\/\//,
 };
 
+// URLs that would only have a HEAD request sent and not a full GET request
+// to save bandwidth.
+export const headOnlyUrlRegexes = [
+  /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|tiff?|avif)(\?.*)?$/i,
+  /\.(mp4|webm|ogg|mp3|wav|flac|aac)(\?.*)?$/i,
+  /\.(pdf|docx?|xlsx?|pptx?|odt|ods|odp)(\?.*)?$/i,
+];
+
 // For ignored URLs
 export const ignoredUrlRegexes = [
   /^data:/,
@@ -46,21 +51,17 @@ export const ignoredUrlRegexes = [
 
 // Which directory to output the report to.
 // `{{host}}` in the path will be replaced with the first seed URL's host.
-export const outputDir = `${__dirname}/dist/{{host}}`;
+export const outputDir = path.resolve(`${__dirname}/../dist/{{host}}`);
 
 // If the report directory exists, should it be deleted first.
 export const overwrite = false;
 
 // == Logger Settings ==
 
+// Notes: To modify the log level, set the LOG_LEVEL environment variable.
+
 // Whether to print help message and exit.
 export const help = false;
 
-// Error logging level: debug, info, warn, error, none.
-export const logLevel = "info";
-
-// Time format for logs, using dayjs format.
-export const timeFormat = "YYYY-MM-DD HH:mm:ss";
-
-// Whether to run in quiet mode (no console output), same as --log_level none.
+// Whether to run in quiet mode (no console output).
 export const quiet = false;

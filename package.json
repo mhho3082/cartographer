@@ -2,9 +2,10 @@
   "name": "cartographer",
   "version": "0.1.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "clean": "rm -rf ./*.log"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +13,9 @@
   "type": "module",
   "dependencies": {
     "axios": "^1.13.2",
-    "dayjs": "^1.11.19"
+    "axios-cookiejar-support": "^6.0.5",
+    "htmlparser2": "^10.0.0",
+    "tough-cookie": "^6.0.0",
+    "winston": "^3.19.0"
   }
 }
