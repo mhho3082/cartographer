@@ -16,7 +16,6 @@ const main = async () => {
     options: {
       help: { type: "boolean", short: "h" },
       quiet: { type: "boolean" },
-      timeFormat: { type: "string" },
       external: { type: "boolean" },
       outputDir: { type: "string" },
       overwrite: { type: "boolean" },
@@ -35,7 +34,6 @@ Generates a network graph report starting from the provided seed URLs
 Options:
   -h, --help             Show this help message and exit
   --quiet                Run in quiet mode (no console output, only log files)
-  --timeFormat <format>  Format for timestamps in logs (default: "YYYY-MM-DD HH:mm:ss")
   --no-external          Do not check external links for validity
   --outputDir <dir>      Directory to output the report to
   --overwrite            Overwrite the output directory if it exists

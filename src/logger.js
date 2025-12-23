@@ -3,21 +3,61 @@
 
 import winston from "winston";
 import colors from "@colors/colors/safe.js";
+import { LEVEL, MESSAGE } from "triple-beam";
 
 import * as defaultConfig from "./config.js";
 
 // Uses singleton pattern for logger instance
 let logger = null;
+let config = defaultConfig;
 
-export function createLogger(config = {}) {
-  const timeFormat = config.timeFormat || "YYYY-MM-DD HH:mm:ss";
+// Modified from NPM defaults at
+// https://github.com/winstonjs/winston?tab=readme-ov-file#logging-levels
+const levels = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  loading: 2,
+  http: 3,
+  verbose: 4,
+  debug: 5,
+  silly: 6,
+};
+colors.setTheme({
+  error: ["red", "bold"],
+  warn: ["yellow", "bold"],
+  info: ["bold"],
+  loading: ["gray", "bold"],
+  http: ["gray", "bold"],
+  verbose: ["gray", "bold"],
+  debug: ["gray", "bold"],
+  silly: ["gray", "bold"],
+});
+
+const consoleFormat = winston.format.combine(
+  winston.format.timestamp({ format: config.timeFormat }),
+  winston.format.padLevels({ levels }),
+  winston.format.printf(
+    (info) =>
+      colors.gray(info.timestamp) +
+      " " +
+      colors[info.level]("[" + info.level.toUpperCase() + "]") +
+      " " +
+      info.message +
+      (info.stack ? `\n${info.stack}` : ""),
+  ),
+);
+
+export function createLogger(options = {}) {
+  config = { ...config, ...options };
   logger = winston.createLogger({
     level: process.env.LOG_LEVEL || "info",
+    levels,
     transports: [
       new winston.transports.File({
         filename: "combined.log",
         format: winston.format.combine(
-          winston.format.timestamp({ format: timeFormat }),
+          winston.format.timestamp({ format: config.timeFormat }),
           winston.format.json(),
         ),
       }),
@@ -26,7 +66,7 @@ export function createLogger(config = {}) {
         level: "error",
         format: winston.format.combine(
           winston.format.errors({ stack: true }),
-          winston.format.timestamp({ format: timeFormat }),
+          winston.format.timestamp({ format: config.timeFormat }),
           winston.format.json(),
         ),
       }),
@@ -34,28 +74,10 @@ export function createLogger(config = {}) {
   });
 
   if (!config.quiet) {
-    colors.setTheme({
-      error: ["red", "bold"],
-      warn: ["yellow", "bold"],
-      info: ["bold"],
-      debug: ["gray", "bold"],
-    });
     logger.add(
       new winston.transports.Console({
         level: process.env.LOG_LEVEL || "info",
-        format: winston.format.combine(
-          winston.format.timestamp({ format: timeFormat }),
-          winston.format.padLevels(),
-          winston.format.printf(
-            (info) =>
-              colors.gray(info.timestamp) +
-              " " +
-              colors[info.level]("[" + info.level.toUpperCase() + "]") +
-              " " +
-              info.message +
-              (info.stack ? `\n${info.stack}` : ""),
-          ),
-        ),
+        format: consoleFormat,
       }),
     );
   }
@@ -71,4 +93,29 @@ export function getLogger() {
     );
   }
   return logger;
+}
+
+// Special function to handle progress messages, to the console only.
+export function progress(message) {
+  if (
+    !config.quiet &&
+    levels[process.env.LOG_LEVEL || "info"] >= levels["loading"]
+  ) {
+    process.stdout.write(
+      consoleFormat.transform({
+        [LEVEL]: "loading",
+        level: "loading",
+        message: `\x1b[K${message}\r`,
+      })[MESSAGE],
+    );
+  }
+}
+
+export function progressEnd() {
+  if (
+    !config.quiet &&
+    levels[process.env.LOG_LEVEL || "info"] >= levels["loading"]
+  ) {
+    process.stdout.write("\n");
+  }
 }

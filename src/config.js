@@ -14,6 +14,10 @@ export const requestTimeout = 10 * 1000;
 // This is state of the --external option.
 export const checkExternalLinks = true;
 
+// The user agent to use.
+export const userAgent =
+  "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0";
+
 // == URL Classification ==
 
 // The regexes that indicate a URL is internal.
@@ -31,20 +35,15 @@ export const badUrlRegexes = {
   "SSH URI scheme is not allowed": /^ssh:\/\//,
 };
 
-// URLs that would only have a HEAD request sent and not a full GET request
-// to save bandwidth.
-export const headOnlyUrlRegexes = [
-  /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|tiff?|avif)(\?.*)?$/i,
-  /\.(mp4|webm|ogg|mp3|wav|flac|aac)(\?.*)?$/i,
-  /\.(pdf|docx?|xlsx?|pptx?|odt|ods|odp)(\?.*)?$/i,
-];
-
 // For ignored URLs
 export const ignoredUrlRegexes = [
   /^data:/,
+  /^about:/,
+  /^blob:/,
+  /^javascript:/,
   /^tel:/,
   /^mailto:/,
-  /^javascript:/,
+  /^whatsapp:/,
 ];
 
 // == Report settings ==
@@ -65,3 +64,6 @@ export const help = false;
 
 // Whether to run in quiet mode (no console output).
 export const quiet = false;
+
+// The default time format, in fecha format.
+export const timeFormat = "YYYY-MM-DD HH:mm:ss";

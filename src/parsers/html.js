@@ -1,5 +1,18 @@
 import * as htmlparser2 from "htmlparser2";
 
+const TAG_ATTRS = {
+  a: "href",
+  link: "href",
+  base: "href",
+  img: "src",
+  script: "src",
+  iframe: "src",
+  frame: "src",
+  embed: "src",
+  video: "src",
+  area: "href",
+};
+
 export class HTMLParser {
   constructor(config) {
     this.config = config;
@@ -17,32 +30,21 @@ export class HTMLParser {
       onopentag(name, attribs) {
         if (name === "title") {
           currentTag = "title";
-        } else if (name === "base" && attribs.href) {
-          links.push(attribs.href);
-        } else if (name === "link" && attribs.href) {
-          links.push(attribs.href);
-        } else if (name === "a" && attribs.href) {
-          links.push(attribs.href);
-        } else if (name === "img" && attribs.src) {
-          links.push(attribs.src);
-        } else if (name === "video" && attribs.src) {
-          links.push(attribs.src);
-        } else if (name === "script" && attribs.src) {
-          links.push(attribs.src);
-        } else if (name === "embed" && attribs.src) {
-          links.push(attribs.src);
-        } else if (name === "param" && attribs.name === "movie" && attribs.value) {
+          return;
+        }
+
+        const attr = TAG_ATTRS[name];
+        if (attr && attribs[attr]) links.push(attribs[attr]);
+
+        if (name === "applet") {
+          if (attribs.archive) links.push(attribs.archive);
+          if (attribs.code) links.push(attribs.code);
+        } else if (
+          name === "param" &&
+          attribs.name === "movie" &&
+          attribs.value
+        ) {
           links.push(attribs.value);
-        } else if (name === "frame" && attribs.src) {
-          links.push(attribs.src);
-        } else if (name === "iframe" && attribs.src) {
-          links.push(attribs.src);
-        } else if (name === "area" && attribs.href) {
-          links.push(attribs.href);
-        } else if (name === "applet" && attribs.archive) {
-          links.push(attribs.archive);
-        } else if (name === "applet" && attribs.code) {
-          links.push(attribs.code);
         }
       },
       ontext(text) {
@@ -53,6 +55,8 @@ export class HTMLParser {
       onclosetag() {
         currentTag = null;
       },
+    }, {
+      decodeEntities: false
     });
 
     parser.write(res.data);

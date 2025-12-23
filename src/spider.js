@@ -1,14 +1,12 @@
 import axios from "axios";
-import { wrapper } from "axios-cookiejar-support";
-import { CookieJar } from "tough-cookie";
+import http from "node:http";
+import https from "node:https";
 
-import { getLogger } from "./logger.js";
+import { getLogger, progress, progressEnd } from "./logger.js";
 
 export class Spider {
   constructor(config, seedUrls) {
     this.config = config;
-    this.seedUrls = seedUrls;
-
     const logger = getLogger();
 
     // Check if any seed URL have HTTP basic auth; if yes, pick the first one
@@ -25,7 +23,6 @@ export class Spider {
             this.username = decodeURIComponent(parsed.username);
             this.password = decodeURIComponent(parsed.password);
           }
-          this.seedUrls[i] = this.normalizeUrl(url);
         }
       } catch (error) {
         logger.warn(
@@ -33,26 +30,52 @@ export class Spider {
         );
       }
     }
+    this.seedUrls = seedUrls.map((v) => this.normalizeUrl(v));
 
-    this.jar = new CookieJar();
-    this.client = wrapper(
-      axios.create({
-        jar: this.jar,
-        timeout: this.config.requestTimeout,
-        auth:
-          this.username && this.password
-            ? {
-              username: this.username,
-              password: this.password,
-            }
-            : undefined,
-        maxRedirects: 0,
-        validateStatus: null,
-      }),
-    );
+    const httpAgent = new http.Agent({
+      keepAlive: true,
+      keepAliveMsecs: 2_500,
+      maxSockets: this.config.maxSockets ?? 200,
+      maxFreeSockets: this.config.maxFreeSockets ?? 50,
+    });
+    const httpsAgent = new https.Agent({
+      keepAlive: true,
+      keepAliveMsecs: 2_500,
+      maxSockets: this.config.maxSockets ?? 200,
+      maxFreeSockets: this.config.maxFreeSockets ?? 50,
+    });
+    this.client = axios.create({
+      timeout: this.config.requestTimeout,
+      httpAgent,
+      httpsAgent,
+      decompress: true,
+      auth:
+        this.username && this.password
+          ? {
+            username: this.username,
+            password: this.password,
+          }
+          : undefined,
+      headers: {
+        "User-Agent": this.config.userAgent,
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        Connection: "keep-alive",
+        "Cache-Control": "no-cache",
+      },
+      maxRedirects: 0,
+      validateStatus: null,
+      responseType: "text",
+      transformResponse: [(data) => data], // bypass default JSON parsing heuristics
+    });
   }
 
   normalizeUrl(url, base = undefined) {
+    if (this.config.ignoredUrlRegexes.some((regex) => regex.test(url))) {
+      return null;
+    }
+
     try {
       const normalized = base ? new URL(url, base) : new URL(url);
       normalized.username = "";
@@ -75,29 +98,36 @@ export class Spider {
   async crawl(parsers, scanners) {
     // Output is a key-value store for report data (key is URL)
     const logger = getLogger();
-    const visited = new Set();
-    const queue = [];
-    const result = {};
+    const getContentTypes = Object.keys(parsers);
     let res;
+    const result = {};
 
-    queue.push(...this.seedUrls.map(this.normalizeUrl).filter(Boolean));
+    const queue = [];
+    let qh = 0; // queue head index
+    const queued = new Set(); // All URLs ever enqueued
+    const visited = new Set(); // All URLs ever accessed
+    const enqueue = (u) => {
+      if (!u || queued.has(u)) {
+        return;
+      }
+      queued.add(u);
+      queue.push(u);
+    };
+
+    logger.info("Crawling initialized");
+    this.seedUrls.forEach(enqueue);
 
     // Main loop
-    main: while (queue.length > 0) {
-      const url = queue.shift();
+    main: while (qh < queue.length) {
+      const url = queue[qh++];
+      progress(`(${qh}/${queued.size}) Crawling ${url}...`);
+
       if (visited.has(url)) {
+        // Something slipped through the cracks
         continue main;
       }
-      visited.add(url);
-
-      // Ignore URLs matching ignored patterns
-      if (this.config.ignoredUrlRegexes.some((regex) => regex.test(url))) {
-        logger.debug(`Ignoring URL due to ignore patterns: ${url}`);
-        continue main;
-      }
-      logger.info(`Crawling URL: ${url}`);
-
       result[url] = { url, bad: false };
+      visited.add(url);
 
       // Decide which type of URL this is
       let isInternal = this.isInternal(url);
@@ -115,11 +145,14 @@ export class Spider {
 
       try {
         // If the URL clearly points to an image, use HEAD request to save bandwidth
-        if (this.config.headOnlyUrlRegexes.some((regex) => regex.test(url))) {
-          res = await this.client.head(url);
-        } else {
+        res = await this.client.head(url);
+        if (
+          res.status < 400 &&
+          getContentTypes.includes(res.headers["content-type"])
+        ) {
           res = await this.client.get(url);
         }
+
         result[url].status = res.status;
       } catch (error) {
         logger.debug(`Marking URL as bad due to request error: ${url}`);
@@ -131,11 +164,7 @@ export class Spider {
 
       // Handle redirects, which sometimes do not have response bodies
       if (res.status >= 300 && res.status < 400 && res.headers.location) {
-        const location = this.normalizeUrl(res.headers.location, url);
-        if (location) {
-          result[url].title = `Redirected to ${location}`;
-          result[url].links = [location];
-        }
+        result[url].links = [res.headers.location];
       }
 
       if (res.status >= 400) {
@@ -155,31 +184,22 @@ export class Spider {
 
       // Normalize and enqueue discovered links
       result[url].links =
-        result[url].links
-          ?.map((v) => this.normalizeUrl(v, url))
-          .filter(
-            (v) =>
-              v &&
-              !this.config.ignoredUrlRegexes.some((regex) => regex.test(v)),
-          ) ?? [];
+        result[url].links?.map((v) => this.normalizeUrl(v, url)) ?? [];
       if (!isInternal) {
         // Filter out external links from non-internal URLs
         result[url].links = result[url].links.filter((v) => this.isInternal(v));
       }
-      if (result[url].links.length > 0) {
-        queue.push(
-          ...result[url].links.filter(
-            (link) => link && !visited.has(link) && !queue.includes(link),
-          ),
-        );
-      }
+      result[url].links.forEach(enqueue);
 
-      // Send the whole response to each scanner
-      for (const scanner of scanners) {
-        result[url] = await scanner.scan(res, url, result[url]);
-      }
+      // Send the whole response to all scanners in parallel
+      const updates = await Promise.all(
+        scanners.map((s) => s.scan(res, url, { ...result[url] })),
+      );
+      for (const u of updates) result[url] = { ...result[url], ...u };
     }
 
+    progressEnd();
+    logger.info("Crawling completed");
     return result;
   }
 }
