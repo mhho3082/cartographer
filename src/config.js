@@ -18,6 +18,15 @@ export const checkExternalLinks = true;
 export const userAgent =
   "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0";
 
+// The maximum number of concurrent HTTP requests.
+export const maxSockets = 1;
+
+// The maximum number of free (idle) sockets to keep open.
+export const maxFreeSockets = 1;
+
+// Only fetch the URLs provided as seeds, without crawling links.
+export const seedUrlsOnly = false;
+
 // == URL Classification ==
 
 // The regexes that indicate a URL is internal.
@@ -53,7 +62,7 @@ export const ignoredUrlRegexes = [
 export const outputDir = path.resolve(`${__dirname}/../dist/{{host}}`);
 
 // If the report directory exists, should it be deleted first.
-export const overwrite = false;
+export const overwrite = true;
 
 // == Logger Settings ==
 

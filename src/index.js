@@ -10,12 +10,22 @@ import { CSSParser } from "./parsers/css.js";
 const main = async () => {
   // == Setup ==
 
+  let config = defaultConfig;
+
+  // If ../config.js exists, load it and override defaultConfig
+  const customConfigPath = new URL("../.config.js", import.meta.url);
+  if (fs.existsSync(customConfigPath)) {
+    const customConfig = await import(customConfigPath.href);
+    config = { ...config, ...customConfig };
+  }
+
   // Positionals are seed URLs
   // https://nodejs.org/api/util.html#utilparseargsconfig
   const { values, positionals: seedUrls } = parseArgs({
     options: {
       help: { type: "boolean", short: "h" },
       quiet: { type: "boolean" },
+      seedUrlsOnly: { type: "boolean" },
       external: { type: "boolean" },
       outputDir: { type: "string" },
       overwrite: { type: "boolean" },
@@ -23,20 +33,21 @@ const main = async () => {
     allowPositionals: true,
     allowNegative: true,
   });
-  const config = { ...defaultConfig, ...values };
+  config = { ...config, ...values };
 
   if (config.help) {
     console.log(
       `
-Usage: node index.js [options] <seed_url1> <seed_url2> ...
+Usage: node src/index.js [options] [seed_url1 seed_url2 ...]
 Generates a network graph report starting from the provided seed URLs
 
 Options:
-  -h, --help             Show this help message and exit
-  --quiet                Run in quiet mode (no console output, only log files)
-  --no-external          Do not check external links for validity
-  --outputDir <dir>      Directory to output the report to
-  --overwrite            Overwrite the output directory if it exists
+  -h, --help         Show this help message and exit
+  --quiet            Run in quiet mode (no console output, only log files)
+  --seedUrlsOnly     Only fetch the seed URLs without crawling links
+  --no-external      Do not check external links for validity
+  --outputDir <dir>  Directory to output the report to
+  --no-overwrite     Do not overwrite the output directory if it exists
 
 To change the log level, modify the LOG_LEVEL environment variable.
 `.trim(),

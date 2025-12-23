@@ -18,50 +18,61 @@ export class HTMLParser {
     this.config = config;
   }
 
-  parse(res) {
+  parse(data) {
     let title = "";
+    let base = undefined;
     const links = [];
     const problems = [];
 
-    // TODO: Handle embedded URLs in CSS and JS within HTML
+    // TODO: Handle embedded URLs in CSS within HTML
 
     let currentTag = null;
-    const parser = new htmlparser2.Parser({
-      onopentag(name, attribs) {
-        if (name === "title") {
-          currentTag = "title";
-          return;
-        }
+    let inBody = false;
+    const parser = new htmlparser2.Parser(
+      {
+        onopentag(name, attribs) {
+          if (name === "title") {
+            currentTag = "title";
+            return;
+          }
+          if (name === "body") {
+            inBody = true;
+            return;
+          }
 
-        const attr = TAG_ATTRS[name];
-        if (attr && attribs[attr]) links.push(attribs[attr]);
+          const attr = TAG_ATTRS[name];
+          if (attr && attribs[attr]) links.push(attribs[attr]);
 
-        if (name === "applet") {
-          if (attribs.archive) links.push(attribs.archive);
-          if (attribs.code) links.push(attribs.code);
-        } else if (
-          name === "param" &&
-          attribs.name === "movie" &&
-          attribs.value
-        ) {
-          links.push(attribs.value);
-        }
+          if (name === "base") {
+            base = attribs.href;
+          } else if (name === "applet") {
+            if (attribs.archive) links.push(attribs.archive);
+            if (attribs.code) links.push(attribs.code);
+          } else if (
+            name === "param" &&
+            attribs.name === "movie" &&
+            attribs.value
+          ) {
+            links.push(attribs.value);
+          }
+        },
+        ontext(text) {
+          if (!inBody && currentTag === "title") {
+            title += text;
+          }
+        },
+        onclosetag() {
+          currentTag = null;
+        },
       },
-      ontext(text) {
-        if (currentTag === "title") {
-          title += text;
-        }
+      {
+        decodeEntities: false,
       },
-      onclosetag() {
-        currentTag = null;
-      },
-    }, {
-      decodeEntities: false
-    });
+    );
 
-    parser.write(res.data);
+    parser.write(data);
     parser.end();
 
-    return { title, links, problems };
+    return { title, base, links, problems };
   }
 }

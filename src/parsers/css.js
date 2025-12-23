@@ -4,12 +4,12 @@ export class CSSParser {
   constructor(config) {
     this.config = config;
   }
-  parse(res) {
+  parse(data) {
     // Returns every URL a browser would potentially fetch from CSS:
     // - `url(...)`: background, src, mask, cursor, border-image, content, etc.
     // - `@import "..."/url(...)`
     // - `@font-face src: url(...) / local(...)`
-    const ast = css.parse(res.data, { silent: true });
+    const ast = css.parse(data, { silent: true });
     const links = [];
 
     const add = (u) => {

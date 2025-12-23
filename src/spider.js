@@ -34,15 +34,13 @@ export class Spider {
 
     const httpAgent = new http.Agent({
       keepAlive: true,
-      keepAliveMsecs: 2_500,
-      maxSockets: this.config.maxSockets ?? 200,
-      maxFreeSockets: this.config.maxFreeSockets ?? 50,
+      maxSockets: this.config.maxSockets,
+      maxFreeSockets: this.config.maxFreeSockets,
     });
     const httpsAgent = new https.Agent({
       keepAlive: true,
-      keepAliveMsecs: 2_500,
-      maxSockets: this.config.maxSockets ?? 200,
-      maxFreeSockets: this.config.maxFreeSockets ?? 50,
+      maxSockets: this.config.maxSockets,
+      maxFreeSockets: this.config.maxFreeSockets,
     });
     this.client = axios.create({
       timeout: this.config.requestTimeout,
@@ -81,11 +79,15 @@ export class Spider {
       normalized.username = "";
       normalized.password = "";
       normalized.hash = "";
-      return normalized.toString();
+      return decodeURIComponent(normalized.toString());
     } catch (error) {
       getLogger().warn(`Invalid URL encountered during normalization: ${url}`);
       return null;
     }
+  }
+
+  normalizeContentType(contentType) {
+    return contentType.split(";")[0].trim().toLowerCase();
   }
 
   isInternal(url) {
@@ -99,7 +101,7 @@ export class Spider {
     // Output is a key-value store for report data (key is URL)
     const logger = getLogger();
     const getContentTypes = Object.keys(parsers);
-    let res;
+    let res, isInternal, contentType, t0;
     const result = {};
 
     const queue = [];
@@ -126,11 +128,11 @@ export class Spider {
         // Something slipped through the cracks
         continue main;
       }
-      result[url] = { url, bad: false };
       visited.add(url);
+      result[url] = { url, bad: false };
 
       // Decide which type of URL this is
-      let isInternal = this.isInternal(url);
+      isInternal = this.isInternal(url);
       result[url].type = isInternal ? "internal" : "external";
 
       // If the URL matches any bad URL patterns, mark it as bad with reason
@@ -143,29 +145,43 @@ export class Spider {
         }
       }
 
+      t0 = performance.now();
       try {
         // If the URL clearly points to an image, use HEAD request to save bandwidth
         res = await this.client.head(url);
+        contentType = this.normalizeContentType(
+          res.headers["content-type"] || "",
+        );
         if (
+          res &&
           res.status < 400 &&
-          getContentTypes.includes(res.headers["content-type"])
+          getContentTypes.includes(contentType) &&
+          (isInternal || this.config.checkExternalLinks)
         ) {
           res = await this.client.get(url);
         }
 
         result[url].status = res.status;
+        result[url].contentType = contentType;
       } catch (error) {
-        logger.debug(`Marking URL as bad due to request error: ${url}`);
-        logger.debug(`Request error details: ${error.message}`);
+        if (axios.isCancel(error)) {
+          logger.debug(`Request cancelled for URL: ${url}`);
+          result[url].error = "Request cancelled";
+        } else if (error.response) {
+          logger.debug(
+            `Marking URL as bad due to request error: ${url} (${error.message})`,
+          );
+          result[url].error = `Request error: ${error.message}`;
+        } else {
+          logger.debug(
+            `Marking URL as bad due to unexpected error: ${url} (${error.message})`,
+          );
+          result[url].error = `Unexpected error: ${error.message}`;
+        }
         result[url].bad = true;
-        result[url].error = `Request error: ${error.message}`;
         continue main;
       }
-
-      // Handle redirects, which sometimes do not have response bodies
-      if (res.status >= 300 && res.status < 400 && res.headers.location) {
-        result[url].links = [res.headers.location];
-      }
+      result[url].responseTime = performance.now() - t0;
 
       if (res.status >= 400) {
         logger.debug(`Marking URL as bad due to HTTP error: ${url}`);
@@ -174,22 +190,34 @@ export class Spider {
         continue main;
       }
 
+      // Handle redirects
+      if (res.status >= 300 && res.status < 400 && res.headers.location) {
+        result[url].links = [res.headers.location];
+      }
+
       // Send the result to parser based on MIME type (if any parsers match)
       // This will return extracted links to enqueue later
-      if (res && res.headers["content-type"]) {
-        const contentType = res.headers["content-type"].split(";")[0].trim();
-        const parsed = parsers[contentType]?.parse(res);
-        result[url] = { ...result[url], ...parsed };
+      if (res && contentType && getContentTypes.includes(contentType)) {
+        const parsed = parsers[contentType].parse(res.data);
+        const links = [...(result[url].links ?? []), ...(parsed?.links ?? [])];
+        result[url] = { ...result[url], ...parsed, links };
       }
 
       // Normalize and enqueue discovered links
+      result[url].base = result[url].base
+        ? this.normalizeUrl(result[url].base, url)
+        : this.normalizeUrl(url);
       result[url].links =
-        result[url].links?.map((v) => this.normalizeUrl(v, url)) ?? [];
+        result[url].links
+          ?.map((v) => this.normalizeUrl(v, result[url].base))
+          .filter(Boolean) ?? [];
       if (!isInternal) {
         // Filter out external links from non-internal URLs
         result[url].links = result[url].links.filter((v) => this.isInternal(v));
       }
-      result[url].links.forEach(enqueue);
+      if (!this.config.seedUrlsOnly) {
+        result[url].links.forEach(enqueue);
+      }
 
       // Send the whole response to all scanners in parallel
       const updates = await Promise.all(
