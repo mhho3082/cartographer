@@ -2,7 +2,7 @@ import axios from "axios";
 import http from "node:http";
 import https from "node:https";
 
-import { getLogger, progress, progressEnd } from "./logger.js";
+import { getLogger } from "./logger.js";
 
 export class Spider {
   constructor(config, seedUrls) {
@@ -122,7 +122,7 @@ export class Spider {
     // Main loop
     main: while (qh < queue.length) {
       const url = queue[qh++];
-      progress(`(${qh}/${queued.size}) Crawling ${url}...`);
+      logger.status(`(${qh}/${queued.size}) Crawling ${url}...`);
 
       if (visited.has(url)) {
         // Something slipped through the cracks
@@ -226,7 +226,6 @@ export class Spider {
       for (const u of updates) result[url] = { ...result[url], ...u };
     }
 
-    progressEnd();
     logger.info("Crawling completed");
     return result;
   }
