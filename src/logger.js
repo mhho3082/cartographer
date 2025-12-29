@@ -95,6 +95,7 @@ const fileFormat = winston.format.combine(
 
 /** Custom console logging format */
 const consoleFormat = winston.format.combine(
+  winston.format.errors({ stack: true }),
   winston.format.timestamp({ format: config.timeFormat }),
   winston.format.padLevels({ levels }),
   winston.format.printf(
@@ -103,11 +104,7 @@ const consoleFormat = winston.format.combine(
       " " +
       colors[info.level]("[" + info.level.toUpperCase() + "]") +
       " " +
-      info.message +
-      // For exceptions, the message also contain the stacktrace
-      (info.stack && `${info.stack}` !== info.message.replace(/^.*?\n/g, "")
-        ? `\n${info.stack}`
-        : ""),
+      (info.stack ? `${info.stack}` : info.message),
   ),
 );
 
