@@ -1,0 +1,60 @@
+body {
+  overflow: hidden;
+}
+
+#loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3rem;
+}
+
+#sigma-container {
+  width: 100dvw;
+  height: 100dvh;
+}
+
+#search {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: white;
+}
+
+#search-input {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  font-size: 1rem;
+  min-width: 28ch;
+}
+
+#sidebar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
+
+  width: 300px;
+  height: 100dvh;
+  background: white;
+
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  transform: translateX(0);
+  transition: transform 0.3s ease;
+}
+
+#sidebar[data-hidden="true"] {
+  transform: translateX(100%);
+}
+
+#sidebar-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  gap: 1rem;
+  padding: 1rem;
+  overflow-y: auto;
+}

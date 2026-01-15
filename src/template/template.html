@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Quick Sigma.js Example</title>
+    <!-- https://stackoverflow.com/a/79493222 -->
+    <script type="importmap">
+      {
+        "imports": {
+          "sigma": "https://cdnjs.cloudflare.com/ajax/libs/sigma.js/3.0.2/sigma.min.js",
+          "graphology": "https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js",
+          "graphologyLibrary": "https://cdn.jsdelivr.net/npm/graphology-library/dist/graphology-library.min.js",
+          "chroma-js": "https://cdn.jsdelivr.net/npm/chroma-js@3.2/index.min.js"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="./normalize.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="loading">Loading...</div>
+    <div id="sigma-container"></div>
+    <div id="search">
+      <input
+        type="search"
+        id="search-input"
+        list="search-suggestions"
+        placeholder="Try searching for a node..."
+      />
+      <datalist id="search-suggestions"></datalist>
+    </div>
+    <div id="sidebar" data-hidden="true">
+      <div id="sidebar-content"></div>
+    </div>
+
+    <script type="module">
+      import * as sigma from "sigma";
+      import "graphology";
+      import "graphologyLibrary";
+      import chroma from "chroma-js";
+
+      // Based on:
+      // - https://www.sigmajs.org/storybook/?path=/story/use-reducers--story
+      // - https://stackoverflow.com/a/79493222
+
+      const container = document.getElementById("sigma-container");
+      const searchInput = document.getElementById("search-input");
+      const searchSuggestions = document.getElementById("search-suggestions");
+      const sidebar = document.getElementById("sidebar");
+      const sidebarContent = document.getElementById("sidebar-content");
+      const loading = document.getElementById("loading");
+
+      // Create a graphology graph
+      const graph = new graphology.Graph();
+
+      // Randomly add nodes
+      for (let i = 1; i <= 250; i++) {
+        const id = i.toString();
+        graph.addNode(id, {
+          x: Math.random(),
+          y: Math.random(),
+          size: 10,
+          label: `Node ${id}`,
+          color: `#ccc`,
+        });
+      }
+
+      // Randomly add edges between nodes
+      const nodes = graph.nodes();
+      for (let i = 0; i < 500; i++) {
+        const source = nodes[Math.floor(Math.random() * nodes.length)];
+        const target = nodes[Math.floor(Math.random() * nodes.length)];
+        if (source !== target && !graph.hasEdge(source, target)) {
+          graph.addEdge(source, target);
+        }
+      }
+
+      // Modify node color based on their pagerank, darker for higher pagerank
+      const pagerankScores =
+        graphologyLibrary.metrics.centrality.pagerank(graph);
+      const scoreValues = Object.values(pagerankScores);
+      const colorScale = chroma
+        // See https://gka.github.io/palettes to try out palettes
+        .scale(["#ffffe0", "#00429d"])
+        .domain([Math.min(...scoreValues), Math.max(...scoreValues)]);
+      graph.forEachNode((node, attributes) => {
+        const score = pagerankScores[node];
+        graph.setNodeAttribute(node, "color", colorScale(score).hex());
+        graph.setNodeAttribute(node, "pagerank", score);
+      });
+
+      // Apply ForceAtlas2 layout to position the nodes
+      const settings = graphologyLibrary.layoutForceAtlas2.inferSettings(graph);
+      graphologyLibrary.layoutForceAtlas2.assign(graph, {
+        iterations: 50,
+        settings: settings,
+      });
+
+      // Instantiate search suggestions
+      searchSuggestions.innerHTML = graph
+        .nodes()
+        .map(
+          (node) =>
+            `<option value="${graph.getNodeAttribute(node, "label")}"></option>`,
+        )
+        .join("\n");
+
+      // Instantiate sigma.js and render the graph
+      const renderer = new Sigma(graph, container);
+
+      // Interactive state:
+      const state = {
+        // Search
+        searchQuery: "",
+        searchTargetNode: undefined,
+        suggestions: undefined,
+
+        // Hover
+        hoveredNode: undefined,
+        hoveredNeighbours: undefined,
+
+        // Click
+        clickedNode: undefined,
+        clickedNeighbours: undefined,
+      };
+
+      // Actions:
+      function setSearchQuery(query, completed = false) {
+        state.searchQuery = query;
+
+        if (searchInput.value !== query) searchInput.value = query;
+
+        if (query) {
+          const lcQuery = query.toLowerCase();
+          const suggestions = graph
+            .nodes()
+            .map((n) => ({ id: n, label: graph.getNodeAttribute(n, "label") }))
+            .filter(({ label }) => label.toLowerCase().includes(lcQuery));
+
+          function setTargetNode(node) {
+            state.searchTargetNode = node;
+            state.suggestions = undefined;
+
+            // Move the camera to center it on the selected node:
+            const nodePosition = renderer.getNodeDisplayData(
+              state.searchTargetNode,
+            );
+            renderer.getCamera().animate(nodePosition, {
+              duration: 500,
+            });
+          }
+
+          // If we have a single perfect match, them we remove the suggestions, and
+          // we consider the user has selected a node through the datalist
+          // autocomplete:
+          if (suggestions.length === 1 && suggestions[0].label === query) {
+            setTargetNode(suggestions[0].id);
+          } else if (completed) {
+            // If the user has completed the search (e.g. pressed Enter), and there
+            // are multiple suggestions, we check again for a perfect match:
+            const perfectMatch = suggestions.find(
+              ({ label }) => label.toLowerCase() === lcQuery,
+            );
+            if (perfectMatch) {
+              setTargetNode(perfectMatch.id);
+            }
+          }
+          // Else, we display the suggestions list:
+          else {
+            state.searchTargetNode = undefined;
+            state.suggestions = new Set(suggestions.map(({ id }) => id));
+          }
+        }
+        // If the query is empty, then we reset the searchTargetNode / suggestions state:
+        else {
+          state.searchTargetNode = undefined;
+          state.suggestions = undefined;
+        }
+
+        // Refresh rendering
+        renderer.refresh({ skipIndexation: true });
+      }
+
+      function setHoveredNode(node = undefined) {
+        if (node !== undefined) {
+          state.hoveredNode = node;
+          state.hoveredNeighbours = new Set(graph.neighbors(node));
+        } else {
+          state.hoveredNode = undefined;
+          state.hoveredNeighbours = undefined;
+        }
+
+        // Refresh rendering
+        renderer.refresh({ skipIndexation: true });
+
+        setSidebarContent();
+      }
+
+      function setClickedNode(node = undefined) {
+        if (node !== undefined) {
+          state.clickedNode = node;
+          state.clickedNeighbours = new Set(graph.neighbors(node));
+        } else {
+          state.clickedNode = undefined;
+          state.clickedNeighbours = undefined;
+        }
+
+        // Refresh rendering
+        renderer.refresh({ skipIndexation: true });
+
+        setSidebarContent();
+      }
+
+      // Set the sidebar content based on the clicked / hovered node
+      function setSidebarContent() {
+        const node = state.clickedNode || state.hoveredNode;
+        if (node) {
+          const label = graph.getNodeAttribute(node, "label");
+          // Include the whole JSON
+          sidebarContent.innerHTML = `
+<h2 style="font-size: 2em; font-weight: 700;">${label}</h2>
+<pre style="font-size: 0.8em;">${JSON.stringify(
+            graph.getNodeAttributes(node),
+            null,
+            2,
+          )}</pre>
+          `;
+          sidebar.dataset.hidden = "false";
+        } else {
+          sidebarContent.innerHTML = "";
+          sidebar.dataset.hidden = "true";
+        }
+      }
+
+      // Bind search input interactions:
+      searchInput.addEventListener("input", () => {
+        setSearchQuery(searchInput.value || "");
+      });
+      searchInput.addEventListener("search", () => {
+        setSearchQuery(searchInput.value || "", true);
+      });
+      searchInput.addEventListener("blur", () => {
+        setSearchQuery("");
+      });
+
+      // Bind graph interactions:
+      renderer.on("enterNode", ({ node }) => {
+        setHoveredNode(node);
+      });
+      renderer.on("leaveNode", () => {
+        setHoveredNode(undefined);
+      });
+      renderer.on("clickNode", ({ node }) => {
+        setClickedNode(node);
+      });
+      renderer.on("clickStage", () => {
+        setClickedNode(undefined);
+      });
+
+      function isHoveredNodeOrNeighbour(node) {
+        return (
+          state.hoveredNode === node ||
+          (state.hoveredNeighbours && state.hoveredNeighbours.has(node))
+        );
+      }
+      function isClickedNodeOrNeighbour(node) {
+        return (
+          state.clickedNode === node ||
+          (state.clickedNeighbours && state.clickedNeighbours.has(node))
+        );
+      }
+      // Render nodes accordingly to the internal state:
+      // 1. If a node is selected, it is highlighted
+      // 2. If there is query, all non-matching nodes are greyed
+      // 3. If there is a hovered node, all non-neighbor nodes are greyed
+      renderer.setSetting("nodeReducer", (node, data) => {
+        const res = { ...data };
+
+        if (state.hoveredNeighbours && !isHoveredNodeOrNeighbour(node)) {
+          if (isClickedNodeOrNeighbour(node)) {
+            // Do nothing, clicked state has priority
+          } else {
+            res.label = "";
+            res.color = "#f6f6f6";
+          }
+        }
+
+        if (
+          !state.hoveredNeighbours &&
+          state.clickedNeighbours &&
+          !isClickedNodeOrNeighbour(node)
+        ) {
+          res.label = "";
+          res.color = "#f6f6f6";
+        }
+
+        if (state.clickedNode === node) {
+          if (!state.hoveredNode) {
+            res.highlighted = true;
+          }
+        }
+
+        if (state.searchTargetNode === node) {
+          res.highlighted = true;
+        } else if (state.suggestions) {
+          if (state.suggestions.has(node)) {
+            res.forceLabel = true;
+          } else {
+            res.label = "";
+            res.color = "#f6f6f6";
+          }
+        }
+
+        return res;
+      });
+
+      // Render edges accordingly to the internal state:
+      // 1. If a node is hovered / clicked, the edge is greyed if it is not connected to the
+      //    node
+      // 2. If there is a query, the edge is greyed unless it connects two suggestions
+      renderer.setSetting("edgeReducer", (edge, data) => {
+        const res = { ...data };
+
+        if (
+          (state.hoveredNode || state.clickedNode) &&
+          !graph
+            .extremities(edge)
+            .every(
+              (n) =>
+                n === state.hoveredNode ||
+                graph.areNeighbors(n, state.hoveredNode) ||
+                n === state.clickedNode ||
+                graph.areNeighbors(n, state.clickedNode),
+            )
+        ) {
+          res.label = "";
+          res.color = "#f6f6f6";
+        }
+
+        if (
+          state.suggestions &&
+          (!state.suggestions.has(graph.source(edge)) ||
+            !state.suggestions.has(graph.target(edge)))
+        ) {
+          res.label = "";
+          res.color = "#f6f6f6";
+        }
+
+        return res;
+      });
+
+      // Hide loading message
+      loading.style.display = "none";
+    </script>
+  </body>
+</html>

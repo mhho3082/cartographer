@@ -90,7 +90,7 @@ To change the log level, modify the LOG_LEVEL environment variable.
 
   // == Begin crawling ==
 
-  // TEMP: Run spider and output report as JSON
+  // TEST: Run spider and output report as JSON
   const spider = new Spider(config, seedUrls);
   const result = await spider.crawl(
     {

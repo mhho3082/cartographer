@@ -1,0 +1,377 @@
+/**
+ * Comprehensive CSS Normalization
+ *
+ * Last updated: 2025-12-15
+ *
+ * This stylesheet normalizes - and in most cases, resets - default browser styles
+ * to provide a clean, consistent foundation for custom styling across all browsers.
+ *
+ * -- QUICK START --
+ *
+ * This file should be imported **before** any other CSS files or style declarations.
+ * Doing so ensures that custom styles can appropriately override the baseline styles
+ * defined here.
+ *
+ * The effects of this stylesheet closely resembles
+ * a [Meyer reset](https://meyerweb.com/eric/tools/css/reset/),
+ * so it is way more extensive than typical modern CSS resets like
+ * [normalize.css](https://necolas.github.io/normalize.css/).
+ * It is strongly recommended and facilitated to apply custom styles to every and all elements;
+ * otherwise, the resultant site will appear very plain.
+ *
+ * Be sure to define your own global font overrides.
+ * Without them, "font: inherit" will use the system's default font,
+ * which likely do not align with the design requirements.
+ *
+ * -- CREDITS --
+ *
+ * This stylesheet draws heavily from Tailwind's Preflight CSS:
+ * - Source: https://github.com/tailwindlabs/tailwindcss/blob/next/packages/tailwindcss/preflight.css
+ * - Documentation: https://tailwindcss.com/docs/preflight
+ *
+ * Additional inspiration from various CSS reset libraries and modern best practices:
+ * - https://github.com/sindresorhus/modern-normalize/blob/main/modern-normalize.css
+ * - https://www.joshwcomeau.com/css/custom-css-reset/
+ * - https://piccalil.li/blog/a-more-modern-css-reset/
+ * - https://github.com/filipelinhares/ress
+ * - https://github.com/csstools/sanitize.css
+ *
+ * Helpful resources and configurations used in this stylesheet:
+ * - 100% height layouts: https://www.dave-woods.co.uk/100-height-layout-using-css/
+ */
+
+@layer normalize {
+  /* -- General -- */
+
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    /* Make it way easier to style things using border-box */
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+    color: inherit;
+    background: transparent;
+
+    /* Reset the fonts to facilitate a class-based custom type scale
+     * (with below, even <h1> to <h6> looks exactly the same as <p>) */
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    text-decoration: inherit;
+
+    /* Help using background-image for showing images */
+    background-repeat: no-repeat;
+  }
+
+  :root,
+  :host,
+  html,
+  body {
+    /* Clean up outermost parent elements for easier positioning */
+    margin: 0;
+    position: relative;
+  }
+
+  /* -- Typography -- */
+
+  :root,
+  :host,
+  html {
+    /* Use sensible default fonts */
+    font-family:
+      Roboto, "Helvetica Neue", Helvetica, Ubuntu, Cantarell, "Noto Sans", "Segoe UI", Arial, system-ui, "Noto Sans TC",
+      "Noto Sans SC", "Source Han Sans CN", "PingFangTC", "PingFangSC", "Microsoft JhengHei", "Microsoft YaHei",
+      sans-serif, "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", emoji;
+    line-height: 1.5;
+    tab-size: 4;
+
+    /* Don't adjust (inflate) fonts on mobile
+     * (responsive font size adjustments should be handled by the design system instead) */
+    -moz-text-size-adjust: none;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
+
+    /* Use legibility-focused antialiasing */
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    /* Use sensible monospace fonts */
+    font-family:
+      SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Ubuntu Monospace", "Noto Mono", "Oxygen Mono", "Liberation Mono",
+      Consolas, ui-monospace, monospace, "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+      emoji;
+    font-size: 1em;
+  }
+
+  b,
+  strong {
+    /* Add back font style for bold text */
+    font-weight: bolder;
+  }
+
+  i,
+  em {
+    /* Add back font style for italic text */
+    font-style: italic;
+  }
+
+  small {
+    /* Add back font style for small text */
+    font-size: 83.3333%; /* 5/6 */
+  }
+
+  sub,
+  sup {
+    /* Prevent affecting the line height in all browsers */
+    font-size: 83.3333%; /* 5/6 */
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+
+  sub {
+    bottom: -0.25em;
+  }
+
+  sup {
+    top: -0.5em;
+  }
+
+  /* -- Lists and Tables -- */
+
+  ol,
+  ul,
+  menu {
+    /* Note: remember to add role="list" to maintain a11y for voiceover */
+    list-style: none;
+  }
+
+  table {
+    /* Use a sensible table layout */
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+
+  caption {
+    /* Align captions to the start by default */
+    text-align: start;
+  }
+
+  /* -- Forms -- */
+
+  textarea {
+    /* Prevent horizontal resizing textareas by default, which most likely breaks layouts */
+    resize: vertical;
+  }
+
+  textarea:not([rows]) {
+    /* Make sure textareas without configured rows are not painfully tiny */
+    min-height: 3em;
+  }
+
+  button,
+  input:where([type="button"], [type="reset"], [type="submit"], [role="button"]),
+  ::file-selector-button {
+    /* Make buttons act like buttons on mobile */
+    -webkit-appearance: button;
+    appearance: button;
+
+    /* Align button text to the start by default */
+    text-align: start;
+  }
+
+  ::placeholder {
+    /* Adjust default placeholder color by mixing instead of opacity */
+    opacity: 1;
+    color: color-mix(in oklch, currentColor 50%, transparent);
+  }
+
+  legend {
+    /* Remove default legend styles */
+    padding: 0;
+  }
+
+  /* Remove browser-specifc form styles (webkit and mozilla) below */
+
+  :-moz-focusring {
+    outline: auto;
+  }
+
+  :-moz-ui-invalid {
+    box-shadow: none;
+  }
+
+  ::-webkit-inner-spin-button,
+  ::-webkit-outer-spin-button {
+    height: auto;
+  }
+
+  ::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  ::-webkit-file-upload-button {
+    -webkit-appearance: button;
+    appearance: button;
+    font: inherit;
+  }
+
+  [hidden] {
+    /* Setup an easy HTML / JS trigger for hiding elements */
+    display: none !important;
+  }
+
+  /* -- Accessibility -- */
+
+  a,
+  area,
+  button,
+  input,
+  label,
+  select,
+  summary,
+  textarea,
+  optgroup,
+  [tabindex="0"] {
+    /* Ensure interactive elements works correctly with touch on mobile */
+    -ms-touch-action: manipulation;
+    touch-action: manipulation;
+  }
+
+  /* Set cursors for various interction states */
+
+  a[href] {
+    /* Only <a> elements should have cursor: pointer by default
+     * https://github.com/tailwindlabs/tailwindcss/issues/8961 */
+    cursor: pointer;
+  }
+
+  [disabled],
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  [readonly],
+  [aria-readonly="true"] {
+    cursor: default;
+  }
+
+  [aria-busy="true"] {
+    cursor: progress;
+  }
+
+  /* Disable all CSS animations if reduced-motion is set
+   * (Note: This does not affect JS animations, which needs their own handling,
+   * e.g., `window.matchMedia("(prefers-reduced-motion: reduce)").matches`;
+   * see https://web.dev/articles/prefers-reduced-motion#working_with_the_media_query_from_css_and_javascript_contexts) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+      animation-delay: -1ms !important;
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      background-attachment: initial !important;
+      scroll-behavior: auto !important;
+      transition-delay: 0s !important;
+      transition-duration: 0s !important;
+    }
+  }
+
+  /* -- Media -- */
+
+  img,
+  picture,
+  svg,
+  video,
+  canvas,
+  audio,
+  iframe,
+  embed,
+  object {
+    /* Sensible defaults */
+    display: block;
+  }
+
+  img,
+  picture,
+  svg,
+  video,
+  canvas,
+  audio,
+  iframe,
+  embed,
+  object {
+    /* Below is triggered only if display: inline-block is set instead.
+     * due to the display: block above, this is split into its own rule, or else the LSP would report errors. */
+    vertical-align: middle;
+  }
+
+  img,
+  picture,
+  svg,
+  video,
+  canvas {
+    /* Make images responsive by default */
+    max-width: 100%;
+    height: auto;
+  }
+
+  svg:not([fill]) {
+    /* Make sure SVGs inherit the current text color (if not defined) */
+    fill: currentColor;
+  }
+
+  /* -- Miscellaneous -- */
+
+  hr {
+    /* Make <hr> elements more consistent */
+    height: 0;
+    border-block-start: 1px solid currentColor;
+  }
+
+  abbr:where([title]) {
+    /* Add a dotted underline to indicate an abbreviation */
+    -webkit-text-decoration: underline;
+    -webkit-text-decoration: underline dotted;
+    text-decoration: underline;
+    text-decoration: underline dotted;
+  }
+
+  summary {
+    /* Make <details> elements more accessible */
+    display: list-item;
+  }
+
+  blockquote,
+  q {
+    /* Remove browser-specific quotes from blockquotes and quotes */
+    quotes: none;
+  }
+
+  blockquote:before,
+  blockquote:after,
+  q:before,
+  q:after {
+    /* Remove pesudo-element quotes from blockquotes and quotes */
+    content: "";
+    content: none;
+  }
+}
