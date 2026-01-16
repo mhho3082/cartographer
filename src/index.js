@@ -7,6 +7,13 @@ import { Spider } from "./spider.js";
 import { HTMLParser } from "./parsers/html.js";
 import { CSSParser } from "./parsers/css.js";
 
+// https://stackoverflow.com/a/62892482
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const main = async () => {
   // == Setup ==
 
@@ -88,9 +95,10 @@ To change the log level, modify the LOG_LEVEL environment variable.
     });
   }
 
-  // == Begin crawling ==
+  // == Crawling ==
 
-  // TEST: Run spider and output report as JSON
+  // Initialize and start the spider
+  // TODO: Add scanners
   const spider = new Spider(config, seedUrls);
   const result = await spider.crawl(
     {
@@ -100,9 +108,17 @@ To change the log level, modify the LOG_LEVEL environment variable.
     [],
   );
 
+  // Write the result to outputDir/result.js
   fs.writeFileSync(
-    `${config.outputDir}/report.json`,
-    JSON.stringify(result, null, 2),
+    `${config.outputDir}/result.js`,
+    `window.__RESULT__ = ${JSON.stringify(result, null, 2)};`
+  );
+
+  // Copy files from template to outputDir
+  fs.cpSync(
+    path.resolve(__dirname, "template"),
+    config.outputDir,
+    { recursive: true },
   );
 };
 

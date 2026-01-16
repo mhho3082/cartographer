@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Quick Sigma.js Example</title>
+    <title>Cartographer Report</title>
     <!-- https://stackoverflow.com/a/79493222 -->
     <script type="importmap">
       {
@@ -33,6 +33,10 @@
       <div id="sidebar-content"></div>
     </div>
 
+    <!-- Import the webcheck results -->
+    <script src="./result.js"></script>
+
+    <!-- The sigma-js config -->
     <script type="module">
       import * as sigma from "sigma";
       import "graphology";
@@ -53,40 +57,56 @@
       // Create a graphology graph
       const graph = new graphology.Graph();
 
-      // Randomly add nodes
-      for (let i = 1; i <= 250; i++) {
-        const id = i.toString();
-        graph.addNode(id, {
+      // Add nodes from result.js
+      for (const [url, attributes] of Object.entries(window.__RESULT__)) {
+        graph.addNode(url, {
+          ...attributes,
+          label: attributes.title || url,
           x: Math.random(),
           y: Math.random(),
           size: 10,
-          label: `Node ${id}`,
           color: `#ccc`,
         });
       }
 
-      // Randomly add edges between nodes
-      const nodes = graph.nodes();
-      for (let i = 0; i < 500; i++) {
-        const source = nodes[Math.floor(Math.random() * nodes.length)];
-        const target = nodes[Math.floor(Math.random() * nodes.length)];
-        if (source !== target && !graph.hasEdge(source, target)) {
-          graph.addEdge(source, target);
+      // For each link of nodes, add an edge and a backlink
+      graph.forEachNode((node, attributes) => {
+        if (attributes.links) {
+          for (const targetLabel of attributes.links) {
+            const targetNode = graph
+              .nodes()
+              .find((n) => graph.getNodeAttribute(n, "url") === targetLabel);
+            if (targetNode && !graph.hasEdge(node, targetNode)) {
+              graph.addEdge(node, targetNode);
+              const backlinks =
+                graph.getNodeAttribute(targetNode, "backlinks") || [];
+              backlinks.push(attributes.url);
+              graph.setNodeAttribute(targetNode, "backlinks", backlinks);
+            }
+          }
         }
-      }
+      });
 
-      // Modify node color based on their pagerank, darker for higher pagerank
-      const pagerankScores =
-        graphologyLibrary.metrics.centrality.pagerank(graph);
-      const scoreValues = Object.values(pagerankScores);
+      // Modify node color
+      const scores = {};
+      graph.forEachNode((node, attributes) => {
+        scores[node] = graph.outNeighbors(node).length * graph.inNeighbors(node).length;
+      });
+      const scoreValues = Object.values(scores);
       const colorScale = chroma
         // See https://gka.github.io/palettes to try out palettes
         .scale(["#ffffe0", "#00429d"])
         .domain([Math.min(...scoreValues), Math.max(...scoreValues)]);
       graph.forEachNode((node, attributes) => {
-        const score = pagerankScores[node];
-        graph.setNodeAttribute(node, "color", colorScale(score).hex());
-        graph.setNodeAttribute(node, "pagerank", score);
+        if (attributes.bad) {
+          // Pastel red for bad nodes
+          graph.setNodeAttribute(node, "color", "#ff6961");
+        } else if (attributes.linkType === "external") {
+          // Pastel green for external links
+          graph.setNodeAttribute(node, "color", "#77dd77");
+        } else {
+          graph.setNodeAttribute(node, "color", colorScale(scores[node]).hex());
+        }
       });
 
       // Apply ForceAtlas2 layout to position the nodes
@@ -239,9 +259,6 @@
       searchInput.addEventListener("search", () => {
         setSearchQuery(searchInput.value || "", true);
       });
-      searchInput.addEventListener("blur", () => {
-        setSearchQuery("");
-      });
 
       // Bind graph interactions:
       renderer.on("enterNode", ({ node }) => {
@@ -258,16 +275,10 @@
       });
 
       function isHoveredNodeOrNeighbour(node) {
-        return (
-          state.hoveredNode === node ||
-          (state.hoveredNeighbours && state.hoveredNeighbours.has(node))
-        );
+        return state.hoveredNode === node || state.hoveredNeighbours?.has(node);
       }
       function isClickedNodeOrNeighbour(node) {
-        return (
-          state.clickedNode === node ||
-          (state.clickedNeighbours && state.clickedNeighbours.has(node))
-        );
+        return state.clickedNode === node || state.clickedNeighbours?.has(node);
       }
       // Render nodes accordingly to the internal state:
       // 1. If a node is selected, it is highlighted
@@ -276,20 +287,15 @@
       renderer.setSetting("nodeReducer", (node, data) => {
         const res = { ...data };
 
-        if (state.hoveredNeighbours && !isHoveredNodeOrNeighbour(node)) {
-          if (isClickedNodeOrNeighbour(node)) {
-            // Do nothing, clicked state has priority
-          } else {
-            res.label = "";
-            res.color = "#f6f6f6";
-          }
-        }
-
         if (
-          !state.hoveredNeighbours &&
-          state.clickedNeighbours &&
-          !isClickedNodeOrNeighbour(node)
+          // No selection
+          (!state.hoveredNode && !state.clickedNode && !state.suggestions) ||
+          // Included in selection(s)
+          isHoveredNodeOrNeighbour(node) ||
+          isClickedNodeOrNeighbour(node) ||
+          state.suggestions?.has(node)
         ) {
+        } else {
           res.label = "";
           res.color = "#f6f6f6";
         }
@@ -302,13 +308,6 @@
 
         if (state.searchTargetNode === node) {
           res.highlighted = true;
-        } else if (state.suggestions) {
-          if (state.suggestions.has(node)) {
-            res.forceLabel = true;
-          } else {
-            res.label = "";
-            res.color = "#f6f6f6";
-          }
         }
 
         return res;
@@ -322,26 +321,21 @@
         const res = { ...data };
 
         if (
-          (state.hoveredNode || state.clickedNode) &&
-          !graph
+          // No selection
+          (!state.hoveredNode && !state.clickedNode && !state.suggestions) ||
+          // Included in selection(s)
+          graph
             .extremities(edge)
             .every(
               (n) =>
                 n === state.hoveredNode ||
                 graph.areNeighbors(n, state.hoveredNode) ||
                 n === state.clickedNode ||
-                graph.areNeighbors(n, state.clickedNode),
+                graph.areNeighbors(n, state.clickedNode) ||
+                state.suggestions?.has(n),
             )
         ) {
-          res.label = "";
-          res.color = "#f6f6f6";
-        }
-
-        if (
-          state.suggestions &&
-          (!state.suggestions.has(graph.source(edge)) ||
-            !state.suggestions.has(graph.target(edge)))
-        ) {
+        } else {
           res.label = "";
           res.color = "#f6f6f6";
         }

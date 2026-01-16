@@ -132,8 +132,9 @@ export class Spider {
       result[url] = { url, bad: false };
 
       // Decide which type of URL this is
+      // Note: Due to graphology, cannot use "type" as it is a reserved attribute
       isInternal = this.isInternal(url);
-      result[url].type = isInternal ? "internal" : "external";
+      result[url].linkType = isInternal ? "internal" : "external";
 
       // If the URL matches any bad URL patterns, mark it as bad with reason
       for (const [reason, regex] of Object.entries(this.config.badUrlRegexes)) {
@@ -199,7 +200,8 @@ export class Spider {
       // This will return extracted links to enqueue later
       if (res && contentType && getContentTypes.includes(contentType)) {
         const parsed = parsers[contentType].parse(res.data);
-        const links = [...(result[url].links ?? []), ...(parsed?.links ?? [])];
+        // Merge and deduplicate links
+        const links = [...new Set([...(result[url].links ?? []), ...(parsed?.links ?? [])])];
         result[url] = { ...result[url], ...parsed, links };
       }
 
