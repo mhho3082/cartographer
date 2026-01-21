@@ -68,6 +68,9 @@ export const outputDir = path.resolve(`${__dirname}/../dist/{{host}}`);
 /** If the report directory exists, should it be deleted first. */
 export const overwrite = true;
 
+/** Whether to open the report automatically after generation. */
+export const openReport = true;
+
 // == Logger Settings ==
 
 // Notes: To modify the log level, set the LOG_LEVEL environment variable.

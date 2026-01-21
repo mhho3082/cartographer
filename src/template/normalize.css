@@ -1,7 +1,7 @@
 /**
  * Comprehensive CSS Normalization
  *
- * Last updated: 2025-12-15
+ * Last updated: 2026-01-21
  *
  * This stylesheet normalizes - and in most cases, resets - default browser styles
  * to provide a clean, consistent foundation for custom styling across all browsers.
@@ -38,6 +38,15 @@
  *
  * Helpful resources and configurations used in this stylesheet:
  * - 100% height layouts: https://www.dave-woods.co.uk/100-height-layout-using-css/
+ *
+ * -- LICENSE --
+ *
+ * Copyright (c) 2024 Max Ho
+ *
+ * Usage of the works is permitted provided that this instrument is retained with the works,
+ * so that any entity that uses the works is notified of this instrument.
+ *
+ * DISCLAIMER: THE WORKS ARE WITHOUT WARRANTY.
  */
 
 @layer normalize {
@@ -53,8 +62,12 @@
     margin: 0;
     padding: 0;
     border: 0 solid;
+
+    /* Ensure consistent colors and backgrounds,
+     * including for disabled buttons */
     color: inherit;
     background: transparent;
+    opacity: 1;
 
     /* Reset the fonts to facilitate a class-based custom type scale
      * (with below, even <h1> to <h6> looks exactly the same as <p>) */
@@ -77,6 +90,18 @@
     position: relative;
   }
 
+  [hidden]:where(:not([hidden="until-found"])) {
+    /* Make elements with the HTML hidden attribute stay hidden by default
+     * https://github.com/tailwindlabs/tailwindcss/pull/14631 */
+    display: none !important;
+  }
+
+  :target {
+    /* Add some scroll margin to the target element
+     * to prevent it from being hidden under fixed headers */
+    scroll-margin-block: 5ex;
+  }
+
   /* -- Typography -- */
 
   :root,
@@ -84,9 +109,11 @@
   html {
     /* Use sensible default fonts */
     font-family:
-      Roboto, "Helvetica Neue", Helvetica, Ubuntu, Cantarell, "Noto Sans", "Segoe UI", Arial, system-ui, "Noto Sans TC",
-      "Noto Sans SC", "Source Han Sans CN", "PingFangTC", "PingFangSC", "Microsoft JhengHei", "Microsoft YaHei",
-      sans-serif, "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", emoji;
+      Roboto, "Helvetica Neue", Helvetica, Ubuntu, Cantarell, "Noto Sans",
+      "Segoe UI", Arial, system-ui, "Noto Sans TC", "Noto Sans SC",
+      "Source Han Sans CN", "PingFangTC", "PingFangSC", "Microsoft JhengHei",
+      "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Noto Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol", emoji;
     line-height: 1.5;
     tab-size: 4;
 
@@ -109,9 +136,10 @@
   pre {
     /* Use sensible monospace fonts */
     font-family:
-      SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Ubuntu Monospace", "Noto Mono", "Oxygen Mono", "Liberation Mono",
-      Consolas, ui-monospace, monospace, "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-      emoji;
+      SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Ubuntu Monospace",
+      "Noto Mono", "Oxygen Mono", "Liberation Mono", Consolas, ui-monospace,
+      monospace, "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji",
+      "Segoe UI Symbol", emoji;
     font-size: 1em;
   }
 
@@ -154,7 +182,8 @@
   ol,
   ul,
   menu {
-    /* Note: remember to add role="list" to maintain a11y for voiceover */
+    /* Make lists unstyled by default
+     * Note: remember to add role="list" to maintain a11y for voiceover */
     list-style: none;
   }
 
@@ -184,7 +213,12 @@
   }
 
   button,
-  input:where([type="button"], [type="reset"], [type="submit"], [role="button"]),
+  input:where(
+    [type="button"],
+    [type="reset"],
+    [type="submit"],
+    [role="button"]
+  ),
   ::file-selector-button {
     /* Make buttons act like buttons on mobile */
     -webkit-appearance: button;
@@ -195,14 +229,65 @@
   }
 
   ::placeholder {
-    /* Adjust default placeholder color by mixing instead of opacity */
+    /* Reset the default placeholder opacity */
     opacity: 1;
-    color: color-mix(in oklch, currentColor 50%, transparent);
+  }
+
+  @supports (not (-webkit-appearance: -apple-pay-button)) /* Not Safari */ or
+    (contain-intrinsic-size: 1px) /* Safari 17+ */ {
+    ::placeholder {
+      /* Use a color-mix for better placeholder color control
+       * https://github.com/tailwindlabs/tailwindcss/issues/17194 */
+      color: color-mix(in oklab, currentcolor 50%, transparent);
+    }
   }
 
   legend {
     /* Remove default legend styles */
     padding: 0;
+  }
+
+  :where(select:is([multiple], [size])) optgroup {
+    /* Restore default font weight for optgroup */
+    font-weight: bolder;
+  }
+
+  :where(select:is([multiple], [size])) optgroup option {
+    /* Restore default padding for optgroup options */
+    padding-inline-start: 20px;
+  }
+
+  /* Center dropdown marker shown on inputs with paired `<datalist>`s in Chrome
+   * https://github.com/tailwindlabs/tailwindcss/issues/18499 */
+  ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+
+  /* Configure date/time inputs on iOS safari */
+
+  ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+
+  ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+
+  ::-webkit-datetime-edit,
+  ::-webkit-datetime-edit-year-field,
+  ::-webkit-datetime-edit-month-field,
+  ::-webkit-datetime-edit-day-field,
+  ::-webkit-datetime-edit-hour-field,
+  ::-webkit-datetime-edit-minute-field,
+  ::-webkit-datetime-edit-second-field,
+  ::-webkit-datetime-edit-millisecond-field,
+  ::-webkit-datetime-edit-meridiem-field {
+    padding-block: 0;
   }
 
   /* Remove browser-specifc form styles (webkit and mozilla) below */
@@ -229,11 +314,6 @@
     -webkit-appearance: button;
     appearance: button;
     font: inherit;
-  }
-
-  [hidden] {
-    /* Setup an easy HTML / JS trigger for hiding elements */
-    display: none !important;
   }
 
   /* -- Accessibility -- */
@@ -353,6 +433,11 @@
     -webkit-text-decoration: underline dotted;
     text-decoration: underline;
     text-decoration: underline dotted;
+  }
+
+  progress {
+    /* Add the correct vertical alignment in Chrome and Firefox */
+    vertical-align: baseline;
   }
 
   summary {

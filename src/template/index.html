@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cartographer Report</title>
+    <!-- https://stackoverflow.com/a/79493222 -->
+    <script type="importmap">
+      {
+        "imports": {
+          "sigma": "https://cdnjs.cloudflare.com/ajax/libs/sigma.js/3.0.2/sigma.min.js",
+          "graphology": "https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js",
+          "graphologyLibrary": "https://cdn.jsdelivr.net/npm/graphology-library/dist/graphology-library.min.js",
+          "chroma-js": "https://cdn.jsdelivr.net/npm/chroma-js@3.2/index.min.js"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="./normalize.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="sigma-container" class="sigma-container"></div>
+    <div id="sidebar-left" class="sidebar sidebar--left" data-hidden="true">
+      <div id="sidebar-content-left" class="sidebar__content">
+        <button
+          id="sidebar-toggle-left"
+          class="sidebar__toggle sidebar__toggle--left"
+          aria-label="Toggle sidebar"
+          aria-expanded="false"
+        ></button>
+        <div class="search">
+          <input
+            type="text"
+            id="search-input"
+            class="search__input"
+            placeholder="Try searching titles or URLs..."
+          />
+          <button
+            type="button"
+            id="search-clear"
+            class="search__clear"
+            aria-label="Clear search"
+            data-hidden="true"
+          ></button>
+        </div>
+        <select id="interactive-select">
+          <option disabled>Interact with:</option>
+          <option value="all" selected>All nodes</option>
+          <option value="coloured">Coloured nodes only</option>
+        </select>
+        <select id="neighbours-select">
+          <option disabled>Show neighbours on hover / click:</option>
+          <option value="all" selected>All neighbours</option>
+          <option value="in">Incoming only</option>
+          <option value="out">Outgoing only</option>
+        </select>
+        <select id="grey-hide-select">
+          <option disabled>For non-coloured nodes:</option>
+          <option value="grey">Grey out</option>
+          <option value="hide">Hide</option>
+        </select>
+      </div>
+    </div>
+    <div id="sidebar-right" class="sidebar sidebar--right" data-hidden="true">
+      <div id="sidebar-content-right" class="sidebar__content"></div>
+    </div>
+    <div id="loading" class="loading">Loading...</div>
+
+    <!-- Import the webcheck results -->
+    <script src="./result.js"></script>
+
+    <!-- The sigma-js config -->
+    <script type="module">
+      import * as sigma from "sigma";
+      import "graphology";
+      import "graphologyLibrary";
+      import chroma from "chroma-js";
+
+      // Based on:
+      // - https://www.sigmajs.org/storybook/?path=/story/use-reducers--story
+      // - https://stackoverflow.com/a/79493222
+
+      // =======================
+      // DOM helpers
+      // =======================
+      const $ = (id) => {
+        const el = document.getElementById(id);
+        if (!el) {
+          throw new Error(`Missing element: #${id}`);
+        }
+        return el;
+      };
+
+      // DOM elements
+      const container = $("sigma-container");
+      const loading = $("loading");
+
+      // Left sidebar elements
+      const sidebarLeft = $("sidebar-left");
+      const sidebarToggleLeft = $("sidebar-toggle-left");
+      const searchInput = $("search-input");
+      const searchClear = $("search-clear");
+      const interactiveSelect = $("interactive-select");
+      const neighboursSelect = $("neighbours-select");
+      const greyHideSelect = $("grey-hide-select");
+
+      // Right sidebar elements
+      const sidebarRight = $("sidebar-right");
+      const sidebarContentRight = $("sidebar-content-right");
+
+      // =======================
+      // UI state
+      // =======================
+      const config = {
+        interactive: "all", // "coloured" | "all"
+        neighbours: "all", // "in" | "out" | "all"
+        greyHide: "grey", // "grey" | "hide"
+      };
+
+      const state = {
+        // Search
+        searchQuery: "",
+        suggestions: undefined, // Set<nodeId> | undefined
+
+        // Hover
+        hoveredNode: undefined,
+        hoveredNeighbours: undefined, // Set<nodeId> | undefined
+
+        // Click
+        clickedNode: undefined,
+        clickedNeighbours: undefined, // Set<nodeId> | undefined
+      };
+
+      // =======================
+      // Graph building
+      // =======================
+      const graph = new graphology.Graph();
+
+      /**
+       * Builds nodes from the result object, with URL as id.
+       */
+      function addNodesFromResult(result) {
+        for (const [url, attributes] of Object.entries(result)) {
+          graph.addNode(url, {
+            ...attributes,
+            label: attributes.title || url,
+            x: Math.random(),
+            y: Math.random(),
+            size: 10,
+            color: "#ccc",
+          });
+        }
+      }
+
+      /**
+       * Add edges based on `links`, and compute backlinks.
+       */
+      function addEdgesAndBacklinks() {
+        graph.forEachNode((sourceNode, sourceAttrs) => {
+          const links = sourceAttrs.links || [];
+          for (const targetNode of links) {
+            if (!graph.hasNode(targetNode)) {
+              continue;
+            }
+            if (graph.hasEdge(sourceNode, targetNode)) {
+              continue;
+            }
+
+            graph.addEdge(sourceNode, targetNode);
+
+            const backlinks =
+              graph.getNodeAttribute(targetNode, "backlinks") || [];
+            backlinks.push(sourceAttrs.url);
+            graph.setNodeAttribute(targetNode, "backlinks", backlinks);
+          }
+        });
+      }
+
+      function computeScores() {
+        const scores = new Map();
+        graph.forEachNode((node) => {
+          const score =
+            graph.outNeighbors(node).length * graph.inNeighbors(node).length;
+          scores.set(node, score);
+        });
+        return scores;
+      }
+
+      function applyNodeColors() {
+        const scores = computeScores();
+        const scoreValues = [...scores.values()];
+        const min = Math.min(...scoreValues);
+        const max = Math.max(...scoreValues);
+
+        const colorScale = chroma
+          // See https://gka.github.io/palettes to try out palettes
+          .scale(["#ffffe0", "#00429d"])
+          .domain([min, max]);
+
+        graph.forEachNode((node, attrs) => {
+          let color;
+
+          if (attrs.bad) {
+            color = "#ff6961"; // pastel red for bad nodes
+          } else if (attrs.status >= 300 && attrs.status < 400) {
+            color = "#cba3d6"; // pastel purple for redirects
+          } else if (attrs.linkType === "external") {
+            color = "#77dd77"; // pastel green for external links
+          } else {
+            color = colorScale(scores.get(node)).hex();
+          }
+
+          graph.setNodeAttribute(node, "color", color);
+        });
+      }
+
+      function runLayout() {
+        const settings =
+          graphologyLibrary.layoutForceAtlas2.inferSettings(graph);
+        graphologyLibrary.layoutForceAtlas2.assign(graph, {
+          iterations: 50,
+          settings,
+        });
+      }
+
+      // Build graph
+      addNodesFromResult(window.__RESULT__ || {});
+      addEdgesAndBacklinks();
+      applyNodeColors();
+      runLayout();
+
+      // Instantiate sigma.js
+      const renderer = new Sigma(graph, container);
+
+      // =======================
+      // UI helpers
+      // =======================
+      function setLeftSidebarHidden(hidden) {
+        sidebarLeft.dataset.hidden = hidden ? "true" : "false";
+        sidebarToggleLeft.setAttribute(
+          "aria-expanded",
+          hidden ? "false" : "true",
+        );
+      }
+
+      function setRightSidebarNode(node) {
+        if (!node) {
+          sidebarContentRight.innerHTML = "";
+          sidebarRight.dataset.hidden = "true";
+          return;
+        }
+
+        const label = graph.getNodeAttribute(node, "label");
+        const attrs = graph.getNodeAttributes(node);
+
+        sidebarContentRight.innerHTML = `
+    <h2 style="font-size: 2em; font-weight: 700;">${label}</h2>
+    <pre style="font-size: 0.8em;">${JSON.stringify(attrs, null, 2)}</pre>
+  `;
+        sidebarRight.dataset.hidden = "false";
+      }
+
+      function refresh({ skipIndexation = true } = {}) {
+        renderer.refresh({ skipIndexation });
+      }
+
+      function getNodeNeighbours(node) {
+        switch (config.neighbours) {
+          case "in":
+            return new Set(graph.inNeighbors(node));
+          case "out":
+            return new Set(graph.outNeighbors(node));
+          case "all":
+          default:
+            return new Set(graph.neighbors(node));
+        }
+      }
+
+      function setHoveredNode(node) {
+        state.hoveredNode = node;
+        state.hoveredNeighbours = node ? getNodeNeighbours(node) : undefined;
+        refresh();
+        setRightSidebarNode(state.clickedNode || state.hoveredNode);
+      }
+
+      function setClickedNode(node) {
+        state.clickedNode = node;
+        state.clickedNeighbours = node ? getNodeNeighbours(node) : undefined;
+        refresh();
+        setRightSidebarNode(state.clickedNode || state.hoveredNode);
+      }
+
+      function hasAnySelection() {
+        return (
+          !!state.hoveredNode || !!state.clickedNode || !!state.suggestions
+        );
+      }
+
+      function nodeIsRelevant(node) {
+        return (
+          state.hoveredNode === node ||
+          state.hoveredNeighbours?.has(node) ||
+          state.clickedNode === node ||
+          state.clickedNeighbours?.has(node) ||
+          state.suggestions?.has(node)
+        );
+      }
+
+      function nodeIsInteractive(node) {
+        return (
+          config.interactive === "all" ||
+          !hasAnySelection() ||
+          nodeIsRelevant(node)
+        );
+      }
+
+      function greyOrHideEntity(res) {
+        if (config.greyHide === "grey") {
+          res.label = "";
+          res.color = "#f6f6f6";
+        } else if (config.greyHide === "hide") {
+          res.hidden = true;
+        }
+      }
+
+      function centerCameraOnNode(node) {
+        const nodePosition = renderer.getNodeDisplayData(node);
+        if (!nodePosition) {
+          return;
+        }
+        renderer.getCamera().animate(nodePosition, { duration: 500 });
+      }
+
+      // =======================
+      // Search
+      // =======================
+      function setSearchQuery(query) {
+        state.searchQuery = query;
+
+        if (searchInput.value !== query) {
+          searchInput.value = query;
+        }
+
+        if (!query) {
+          state.suggestions = undefined;
+        } else {
+          const lcQuery = query.toLowerCase();
+
+          const matches = graph
+            .nodes()
+            .map((id) => ({
+              id,
+              url: graph.getNodeAttribute(id, "url"),
+              title: graph.getNodeAttribute(id, "title"),
+            }))
+            .filter(
+              ({ url, title }) =>
+                (title && title.toLowerCase().includes(lcQuery)) ||
+                url.toLowerCase().includes(lcQuery),
+            );
+
+          // Store suggestions set
+          state.suggestions = new Set(matches.map(({ id }) => id));
+        }
+
+        refresh();
+        searchClear.dataset.hidden = query?.length ? "false" : "true";
+      }
+
+      // =======================
+      // Event wiring
+      // =======================
+      sidebarToggleLeft.addEventListener("click", () => {
+        const hidden = sidebarLeft.dataset.hidden === "true";
+        setLeftSidebarHidden(!hidden);
+      });
+
+      interactiveSelect.addEventListener("change", () => {
+        config.interactive = interactiveSelect.value;
+        refresh();
+      });
+
+      neighboursSelect.addEventListener("change", () => {
+        config.neighbours = neighboursSelect.value;
+
+        if (state.hoveredNode) {
+          state.hoveredNeighbours = getNodeNeighbours(state.hoveredNode);
+        }
+        if (state.clickedNode) {
+          state.clickedNeighbours = getNodeNeighbours(state.clickedNode);
+        }
+
+        refresh();
+      });
+
+      greyHideSelect.addEventListener("change", () => {
+        config.greyHide = greyHideSelect.value;
+        refresh();
+      });
+
+      searchInput.addEventListener("input", () => {
+        setSearchQuery(searchInput.value || "");
+      });
+
+      searchClear.addEventListener("click", () => {
+        setSearchQuery("", true);
+        searchInput.focus();
+      });
+
+      renderer.on("enterNode", ({ node }) =>
+        setHoveredNode(nodeIsInteractive(node) ? node : undefined),
+      );
+      renderer.on("leaveNode", () => setHoveredNode(undefined));
+      renderer.on("clickNode", ({ node }) =>
+        setClickedNode(nodeIsInteractive(node) ? node : undefined),
+      );
+      renderer.on("doubleClickNode", ({ node }) => {
+        const url = graph.getNodeAttribute(node, "url");
+        if (url) {
+          window.open(url, "_blank", "noreferrer noopener");
+        }
+      });
+      renderer.on("clickStage", () => setClickedNode(undefined));
+
+      // =======================
+      // Sigma reducers
+      // =======================
+      renderer.setSetting("nodeReducer", (node, data) => {
+        const res = { ...data };
+
+        if (hasAnySelection() && !nodeIsRelevant(node)) {
+          greyOrHideEntity(res);
+        }
+
+        if (state.clickedNode === node && !state.hoveredNode) {
+          res.highlighted = true;
+        }
+
+        return res;
+      });
+
+      renderer.setSetting("edgeReducer", (edge, data) => {
+        const res = { ...data };
+
+        if (!hasAnySelection()) {
+          return res;
+        }
+
+        const [source, target] = graph.extremities(edge);
+
+        if (!(nodeIsRelevant(source) && nodeIsRelevant(target))) {
+          greyOrHideEntity(res);
+        }
+
+        return res;
+      });
+
+      // Hide loading
+      loading.style.display = "none";
+    </script>
+  </body>
+</html>

@@ -1,8 +1,21 @@
-/** Winston logger with customized logging formats and ephemeral status logging */
-
-// When using Winston for logging, avoid calling `process.exit()`,
-// else it may cause issues with pending log writes;
-// see https://github.com/winstonjs/winston/issues/228
+/**
+ * Customized Winston Logger
+ *
+ * Last updated: 2025-12-29
+ *
+ * A Winston logger with customized logging formats and ephemeral status logging
+ *
+ * When using Winston for logging, avoid calling `process.exit()`,
+ * else it may cause issues with pending log writes;
+ * see https://github.com/winstonjs/winston/issues/228
+ *
+ * Copyright (c) 2025 Max Ho
+ *
+ * Usage of the works is permitted provided that this instrument is retained with the works,
+ * so that any entity that uses the works is notified of this instrument.
+ *
+ * DISCLAIMER: THE WORKS ARE WITHOUT WARRANTY.
+ */
 
 import winston from "winston";
 import colors from "@colors/colors/safe.js";

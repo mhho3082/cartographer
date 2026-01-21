@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import fs from "node:fs";
+import childProcess from "node:child_process";
 
 import * as defaultConfig from "./config.js";
 import { createLogger } from "./logger.js";
@@ -36,6 +37,7 @@ const main = async () => {
       external: { type: "boolean" },
       outputDir: { type: "string" },
       overwrite: { type: "boolean" },
+      openReport: { type: "boolean" },
     },
     allowPositionals: true,
     allowNegative: true,
@@ -55,6 +57,7 @@ Options:
   --no-external      Do not check external links for validity
   --outputDir <dir>  Directory to output the report to
   --no-overwrite     Do not overwrite the output directory if it exists
+  --no-openReport    Do not open the report automatically after generation
 
 To change the log level, modify the LOG_LEVEL environment variable.
 `.trim(),
@@ -111,15 +114,34 @@ To change the log level, modify the LOG_LEVEL environment variable.
   // Write the result to outputDir/result.js
   fs.writeFileSync(
     `${config.outputDir}/result.js`,
-    `window.__RESULT__ = ${JSON.stringify(result, null, 2)};`
+    `window.__RESULT__ = ${JSON.stringify(result, null, 0)};`,
   );
 
   // Copy files from template to outputDir
-  fs.cpSync(
-    path.resolve(__dirname, "template"),
-    config.outputDir,
-    { recursive: true },
-  );
+  fs.cpSync(path.resolve(__dirname, "template"), config.outputDir, {
+    recursive: true,
+  });
+
+  if (config.openReport) {
+    // Open the report in the default browser
+    logger.info("Opening report in default browser...");
+    const indexPath = path.resolve(config.outputDir, "index.html");
+    switch (process.platform) {
+      case "linux":
+        childProcess.exec(`xdg-open "${indexPath}"`);
+        break;
+      case "darwin":
+        childProcess.exec(`open "${indexPath}"`);
+        break;
+      case "win32":
+        childProcess.exec(`start "" "${indexPath}"`);
+        break;
+      default:
+        logger.warn(
+          `Cannot open report automatically on platform "${process.platform}".`,
+        );
+    }
+  }
 };
 
 await main();
