@@ -7,7 +7,7 @@
     <script type="importmap">
       {
         "imports": {
-          "sigma": "https://cdnjs.cloudflare.com/ajax/libs/sigma.js/3.0.2/sigma.min.js",
+          "sigma": "https://cdn.jsdelivr.net/npm/sigma@3.0.2/dist/sigma.min.js",
           "graphology": "https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js",
           "graphologyLibrary": "https://cdn.jsdelivr.net/npm/graphology-library/dist/graphology-library.min.js",
           "chroma-js": "https://cdn.jsdelivr.net/npm/chroma-js@3.2/index.min.js"
@@ -42,6 +42,7 @@
             data-hidden="true"
           ></button>
         </div>
+        <div id="search-suggestions" class="search-suggestions"></div>
         <select id="interactive-select">
           <option disabled>Interact with:</option>
           <option value="all" selected>All nodes</option>
@@ -345,21 +346,14 @@
         } else {
           const lcQuery = query.toLowerCase();
 
-          const matches = graph
-            .nodes()
-            .map((id) => ({
-              id,
-              url: graph.getNodeAttribute(id, "url"),
-              title: graph.getNodeAttribute(id, "title"),
-            }))
-            .filter(
-              ({ url, title }) =>
-                (title && title.toLowerCase().includes(lcQuery)) ||
-                url.toLowerCase().includes(lcQuery),
-            );
+          const matches = Object.values(window.__RESULT__).filter(
+            ({ url, title }) =>
+              (title && title.toLowerCase().includes(lcQuery)) ||
+              url.toLowerCase().includes(lcQuery),
+          );
 
           // Store suggestions set
-          state.suggestions = new Set(matches.map(({ id }) => id));
+          state.suggestions = new Set(matches.map(({ url }) => url));
         }
 
         refresh();
