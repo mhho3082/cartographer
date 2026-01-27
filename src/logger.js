@@ -1,7 +1,7 @@
 /**
  * Customized Winston Logger
  *
- * Last updated: 2025-12-29
+ * Last updated: 2026-01-26
  *
  * A Winston logger with customized logging formats and ephemeral status logging
  *
@@ -30,7 +30,7 @@ let config = defaultConfig;
 /** Create and configure a Winston logger instance. */
 export function createLogger(options = {}) {
   config = { ...config, ...options };
-  const level = process.env.LOG_LEVEL || "info";
+  const level = config.logLevel || process.env.LOG_LEVEL || "info";
   logger = winston.createLogger({
     level,
     levels,
