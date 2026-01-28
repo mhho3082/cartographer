@@ -18,8 +18,15 @@ const main = async () => {
 
   const { config, positionals: seedUrls } = parseArgsConfig({
     desc: "Generate an interactive network graph report",
-    positionalSpec: "[seedUrls...]",
-    substitutions: ["{{host}}"]
+    positionalSpec: "[url...]",
+    substitutions: {
+      "{{url}}": ({ positionals }) => positionals?.[0],
+      "{{host}}": ({ positionals }) =>
+        positionals.length ? new URL(positionals?.[0]).host : "",
+      "{{timestamp}}": () => new Date().toISOString().replace(/[:.]/g, "-"),
+    },
+    notes: `Notes:
+  - If you use HTTP basic authentication for the target URL, input in the format of https://user:pwd@host`,
   });
 
   // Setup logger
@@ -49,12 +56,6 @@ const main = async () => {
       config[key][k] = v instanceof RegExp ? v : new RegExp(v);
     }
   }
-
-  // Substitute {{host}} in outputDir with the host of the first seed URL
-  config.outputDir = config.outputDir.replace(
-    "{{host}}",
-    new URL(seedUrls[0]).host,
-  );
 
   // Check and create the output directory
   if (fs.existsSync(config.outputDir)) {

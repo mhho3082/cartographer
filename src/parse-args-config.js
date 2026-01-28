@@ -1,7 +1,7 @@
 /**
  * Basic JSDoc-based command-line argument parser
  *
- * Last updated: 2026-01-27
+ * Last updated: 2026-01-28
  *
  * Copyright (c) 2026 Max Ho
  *
@@ -24,7 +24,8 @@ const camelToKebab = (s) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
 function extractJsdocExports(source) {
   // Captures: /** ... */ export const <name> =
-  const re = /\/\*\*([\s\S]*?)\*\/\s*export\s+const\s+([A-Za-z_$][\w$]*)\s*=/g;
+  const re =
+    /\/\*\*((?:(?!\*\/)[\s\S])*?)\*\/\s*export\s+const\s+([A-Za-z_$][\w$]*)\s*=/g;
 
   const items = [];
   for (let m; (m = re.exec(source));) {
@@ -37,7 +38,7 @@ function extractJsdocExports(source) {
 
     const description = lines
       .filter((l) => l && !l.startsWith("@"))
-      .join(" ")
+      .join("\n")
       .trim();
 
     const jsdocType = lines
@@ -217,22 +218,36 @@ function parseValueByKind(flag, kind, raw) {
   }
 }
 
-function formatHelp({ bin, desc, positionalSpec, spec, substitutions = [] }) {
-  const rows = spec.map((s) => {
-    const opt =
+function formatHelp({
+  bin,
+  desc,
+  spec,
+  positionalSpec,
+  notes = "",
+  substitutions = [],
+}) {
+  let rows = spec.map((s) => {
+    s.option =
       s.kind === "boolean" ? `--[no-]${s.flag}` : `--${s.flag} <${s.kind}>`;
-    const desc = `${s.description || ""}`;
-    return { opt, desc };
+    return s;
   });
+  const optionWidth = Math.max(...rows.map((r) => r.option.length));
+  const optionTotalWidth = optionWidth + 2 + 2; // padding + indent
 
-  const optW = Math.max(...rows.map((r) => r.opt.length));
+  rows = rows.map((r) => {
+    r.option = r.option.padEnd(optionWidth);
+    r.description = r.description
+      .replace(/\n/g, `\n${" ".repeat(optionTotalWidth)}`)
+      .trimEnd();
+    return r;
+  });
 
   return `Usage: node ${bin} [options] ${positionalSpec} ${desc ? "\n\n" + desc : ""}
 
 Options:
-${rows.map((r) => `  ${r.opt.padEnd(optW)}  ${r.desc}`.trimEnd()).join("\n")}
+${rows.map((r) => `  ${r.option}  ${r.description}`).join("\n")} ${notes.length > 0 ? "\n\n" + notes : ""}
 
-Notes:
+CLI options notes:
   - boolean options support --no-[flag] for negation
   - string options take raw strings (no JSON required)
   - number/array/object options require JSON input (e.g. --count 3 --list "[1,2]")
@@ -249,11 +264,15 @@ Notes:
  * @param {Object} options
  * @param {string} options.desc - Description of the program (shown in help).
  * @param {string} options.positionalSpec - Positional arguments spec (e.g. "[seedUrls...]"). If provided, positionals will be allowed in the CLI.
+ * @param {string} [options.notes] - Additional notes to show in help.
+ * @param {Object} [options.substitutions] - Substitution mappings of keys and functions to generate their values.
+ * @returns {{config: Object, positionals: string[]}} - The merged config object and positional arguments.
  */
 export function parseArgsConfig({
   desc,
   positionalSpec = "",
-  substitutions = [],
+  notes,
+  substitutions = {},
 }) {
   const configPath = path.join(__dirname, "config.js");
   const src = fs.readFileSync(configPath, "utf8");
@@ -271,22 +290,31 @@ export function parseArgsConfig({
   const config = { ...defaultConfig };
 
   for (const s of spec) {
-    const flag = s.flag;
-    if (!(flag in values)) continue; // not provided in CLI
-
-    const raw = values[flag];
-    const parsed = parseValueByKind(`--${flag}`, s.kind, raw);
-    config[s.name] = parsed; // keep config keys `camelCase`
+    if (!(s.flag in values)) continue;
+    // keep config keys `camelCase`
+    config[s.name] = parseValueByKind(`--${s.flag}`, s.kind, values[s.flag]);
   }
 
+  // Substitutions for string values
+  for (const s of spec) {
+    if (s.kind !== "string") continue;
+    let val = config[s.name];
+    for (const [key, fn] of Object.entries(substitutions)) {
+      val = val.replaceAll(key, fn({ positionals, config }));
+    }
+    config[s.name] = val;
+  }
+
+  // Handle help flag
   if (values.help || config.help) {
     console.log(
       formatHelp({
         bin: path.relative(process.cwd(), process.argv[1]),
         desc,
-        positionalSpec,
         spec,
-        substitutions,
+        positionalSpec,
+        notes,
+        substitutions: Object.keys(substitutions),
       }),
     );
     process.exit(0);

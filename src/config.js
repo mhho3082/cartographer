@@ -1,4 +1,4 @@
-// Note that you must provide JSDoc comments in below format for each configuration option
+// Note that you must provide JSDoc comments as /** ... */ for each configuration option
 // for the argument parser to pick them up.
 
 // https://stackoverflow.com/a/62892482
@@ -16,8 +16,7 @@ export const help = false;
 /** Whether to suppress logging to console. */
 export const quiet = false;
 
-/** Select the logging level.
- * If not provided, defaults to the LOG_LEVEL environment variable or "info". */
+/** Select the logging level. */
 export const logLevel = process.env.LOG_LEVEL || "info";
 
 /** The default time format, in fecha format. */
@@ -50,8 +49,7 @@ export const seedUrlsOnly = false;
  * If not provided (left empty), will use the domain(s) of provided seed URLs. */
 export const internalUrlRegexes = [];
 
-/** Among matched internal links,
- * mark URLs matching below regexes explicitly as external. */
+/** Among matched internal links, mark URLs matching below regexes explicitly as external. */
 export const externalUrlRegexes = [];
 
 /** Consider URLs matching these regexes as "bad", with reason as key. */
@@ -74,9 +72,8 @@ export const ignoredUrlRegexes = [
 
 // == Report settings ==
 
-/** Which directory to output the report to.
- * `{{host}}` in the path will be replaced with the first seed URL's host. */
-export const outputDir = path.resolve(`${__dirname}/../dist/{{host}}`);
+/** Which directory to output the report to. */
+export const outputDir = path.resolve(`${__dirname}/../dist/{{host}}-{{timestamp}}`);
 
 /** If the report directory exists, should it be deleted first. */
 export const overwrite = true;
