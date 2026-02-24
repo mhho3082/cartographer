@@ -1,5 +1,6 @@
 body {
   overflow: hidden;
+  font-family: "Figtree", sans-serif;
 }
 
 button {
@@ -143,7 +144,6 @@ select {
 .sidebar__table-title {
   font-size: 1.25rem;
   font-weight: bold;
-  margin-bottom: 0.5rem;
 }
 
 /* https://www.30secondsofcode.org/css/s/hover-underline-animation/ */
@@ -155,7 +155,7 @@ select {
 .sidebar__table-title a::after {
   content: "";
   position: absolute;
-  bottom: 0;
+  bottom: -0.125rem;
   left: 0;
 
   width: 100%;
@@ -191,9 +191,20 @@ select {
   text-align: end;
 }
 
-.sidebar__table code {
+.sidebar__table li:not(:last-child) {
+  margin-bottom: 0.5rem;
+}
+
+.code-block {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.code-block span {
   display: block;
 
+  font-family: "IBM Plex Mono", monospace;
   white-space: nowrap;
   width: 100%;
   overflow: auto;
@@ -203,6 +214,28 @@ select {
   background: #f5f5f5;
 }
 
-.sidebar__table li:not(:last-child) {
-  margin-bottom: 0.5rem;
+.copy-json-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.copy-button {
+  width: 1.5rem;
+  height: 1.5rem;
+  aspect-ratio: 1 / 1;
+
+  border-radius: 0.25rem;
+  background: #f5f5f5;
+
+  background-position: center center;
+  background-size: 1rem 1rem;
+  background-repeat: no-repeat;
+  /* https://lucide.dev/icons/copy */
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy-icon lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>');
+}
+
+.copy-button.copied {
+  /* https://lucide.dev/icons/check */
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>');
 }

@@ -16,6 +16,12 @@
     </script>
     <link rel="stylesheet" href="./normalize.css" />
     <link rel="stylesheet" href="./style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="sigma-container" class="sigma-container"></div>
@@ -238,7 +244,7 @@
       runLayout();
 
       // Instantiate sigma.js
-      const renderer = new Sigma(graph, container);
+      const renderer = new Sigma(graph, container, { labelFont: "Figtree" });
 
       // =======================
       // UI helpers
@@ -265,37 +271,74 @@
         ["x", "y", "size", "color", "hidden", "label"].forEach(
           (k) => delete attrs[k],
         );
+
         // Rename keys
-        for (const [k, v] of Object.entries(attrs)) {
+        const data = structuredClone(attrs);
+        for (const [k, v] of Object.entries(data)) {
           let formattedKey = k
             .replace(/([a-z])([A-Z])/g, "$1 $2") // camelCase to separate words
             .replace(/(\b\w)/g, (match) => match.toUpperCase()) // capitalize words
             .replace(/url/i, "URL"); // specific formatting for URL
-          attrs[formattedKey] = v;
-          delete attrs[k];
+          data[formattedKey] = v;
+          delete data[k];
         }
 
         sidebarContentRight.innerHTML = `
-        <h2 class="sidebar__table-title"><a href="${url}" target="_blank">${label}</a></h2>
-        <table class="sidebar__table">
-          ${Object.entries(attrs)
-            .map(
-              ([k, v]) =>
-                `<tr>
-                <td class="sidebar__table-key">${k}</td>
-                <td>${
-                  Array.isArray(v)
-                    ? `<details>
-                        <summary><i>${v.length} items</i></summary>
-                        <ul>${v.map((item) => `<li><code>${item}</code></li>`).join("")}</ul>
-                      </details>`
-                    : `<code>${v}</code>`
-                }</td>
-              </tr>`,
-            )
-            .join("")}
-        </table>
-      `;
+          <h2 class="sidebar__table-title"><a href="${url}" target="_blank">${label}</a></h2>
+          <table class="sidebar__table">
+            ${Object.entries(data)
+              .map(
+                ([k, v]) =>
+                  `<tr>
+                  <td class="sidebar__table-key">${k}</td>
+                  <td>${
+                    Array.isArray(v)
+                      ? `<details>
+                          <summary><i>${v.length} items</i></summary>
+                          <ul>
+                            ${v
+                              .map(
+                                (item) =>
+                                  `<li><div class="code-block">${item}</div></li>`,
+                              )
+                              .join("")}
+                          </ul>
+                        </details>`
+                      : `<div class="code-block">${v}</div>`
+                  }</td>
+                </tr>`,
+              )
+              .join("")}
+          </table>
+          <div class="copy-json-label">Copy JSON: <button class="copy-button"></button></div>
+        `;
+
+        sidebarContentRight.querySelectorAll(".code-block").forEach((block) => {
+          const content = block.textContent;
+          block.innerHTML = `<span>${content}</span>`;
+          const copyButton = document.createElement("button");
+          copyButton.className = "copy-button";
+          block.appendChild(copyButton);
+          copyButton.addEventListener("click", () => {
+            navigator.clipboard.writeText(content).then(() => {
+              copyButton.classList.add("copied");
+              setTimeout(() => copyButton.classList.remove("copied"), 1000);
+            });
+          });
+        });
+
+        sidebarContentRight
+          .querySelectorAll(".copy-json-label .copy-button")
+          .forEach((button) => {
+            button.addEventListener("click", () => {
+              const content = JSON.stringify(attrs, null, 2);
+              navigator.clipboard.writeText(content).then(() => {
+                button.classList.add("copied");
+                setTimeout(() => button.classList.remove("copied"), 1000);
+              });
+            });
+          });
+
         sidebarRight.dataset.hidden = "false";
       }
 
@@ -311,7 +354,6 @@
             return new Set(graph.outNeighbors(node));
           case "all":
             return new Set(graph.neighbors(node));
-          case "none":
           default:
             return undefined;
         }
