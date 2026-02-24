@@ -139,3 +139,70 @@ select {
   right: -2rem;
   border-radius: 0 0.25rem 0.25rem 0;
 }
+
+.sidebar__table-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+/* https://www.30secondsofcode.org/css/s/hover-underline-animation/ */
+.sidebar__table-title a {
+  display: inline-block;
+  position: relative;
+}
+
+.sidebar__table-title a::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+
+  width: 100%;
+  height: 0.125rem;
+  background-color: currentColor;
+
+  transform: scaleX(0);
+  transform-origin: bottom right;
+  transition: transform 0.3s ease-out;
+}
+
+.sidebar__table-title a:hover::after {
+  transform: scaleX(1);
+  transform-origin: bottom left;
+}
+
+.sidebar__table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.sidebar__table th,
+.sidebar__table td {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  vertical-align: top;
+}
+
+.sidebar__table-key {
+  font-weight: bold;
+  width: 30%;
+  text-align: end;
+}
+
+.sidebar__table code {
+  display: block;
+
+  white-space: nowrap;
+  width: 100%;
+  overflow: auto;
+
+  padding-inline: 0.25rem;
+  border-radius: 0.25rem;
+  background: #f5f5f5;
+}
+
+.sidebar__table li:not(:last-child) {
+  margin-bottom: 0.5rem;
+}

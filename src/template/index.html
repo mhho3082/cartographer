@@ -53,6 +53,7 @@
           <option value="all" selected>All neighbours</option>
           <option value="in">Incoming only</option>
           <option value="out">Outgoing only</option>
+          <option value="none">None</option>
         </select>
         <select id="grey-hide-select">
           <option disabled>For non-coloured nodes:</option>
@@ -113,7 +114,7 @@
       // =======================
       const config = {
         interactive: "all", // "coloured" | "all"
-        neighbours: "all", // "in" | "out" | "all"
+        neighbours: "all", // "in" | "out" | "all" | "none"
         greyHide: "grey", // "grey" | "hide"
       };
 
@@ -141,9 +142,16 @@
        */
       function addNodesFromResult(result) {
         for (const [url, attributes] of Object.entries(result)) {
+          let label = attributes.title;
+          if (!label) {
+            // If the last segment of the URL looks like a file (contains a dot),
+            // use it as label, otherwise use the full URL
+            const lastSegment = url.split("/").filter(Boolean).slice(-1)[0];
+            label = lastSegment.includes(".") ? lastSegment : url;
+          }
           graph.addNode(url, {
             ...attributes,
-            label: attributes.title || url,
+            label,
             x: Math.random(),
             y: Math.random(),
             size: 10,
@@ -251,12 +259,43 @@
         }
 
         const label = graph.getNodeAttribute(node, "label");
-        const attrs = graph.getNodeAttributes(node);
+        const url = graph.getNodeAttribute(node, "url");
+        const attrs = structuredClone(graph.getNodeAttributes(node));
+        // Remove sigma.js internal attributes
+        ["x", "y", "size", "color", "hidden", "label"].forEach(
+          (k) => delete attrs[k],
+        );
+        // Rename keys
+        for (const [k, v] of Object.entries(attrs)) {
+          let formattedKey = k
+            .replace(/([a-z])([A-Z])/g, "$1 $2") // camelCase to separate words
+            .replace(/(\b\w)/g, (match) => match.toUpperCase()) // capitalize words
+            .replace(/url/i, "URL"); // specific formatting for URL
+          attrs[formattedKey] = v;
+          delete attrs[k];
+        }
 
         sidebarContentRight.innerHTML = `
-    <h2 style="font-size: 2em; font-weight: 700;">${label}</h2>
-    <pre style="font-size: 0.8em;">${JSON.stringify(attrs, null, 2)}</pre>
-  `;
+        <h2 class="sidebar__table-title"><a href="${url}" target="_blank">${label}</a></h2>
+        <table class="sidebar__table">
+          ${Object.entries(attrs)
+            .map(
+              ([k, v]) =>
+                `<tr>
+                <td class="sidebar__table-key">${k}</td>
+                <td>${
+                  Array.isArray(v)
+                    ? `<details>
+                        <summary><i>${v.length} items</i></summary>
+                        <ul>${v.map((item) => `<li><code>${item}</code></li>`).join("")}</ul>
+                      </details>`
+                    : `<code>${v}</code>`
+                }</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+      `;
         sidebarRight.dataset.hidden = "false";
       }
 
@@ -271,8 +310,10 @@
           case "out":
             return new Set(graph.outNeighbors(node));
           case "all":
-          default:
             return new Set(graph.neighbors(node));
+          case "none":
+          default:
+            return undefined;
         }
       }
 
@@ -292,7 +333,9 @@
 
       function hasAnySelection() {
         return (
-          !!state.hoveredNode || !!state.clickedNode || !!state.suggestions
+          (config.neighbours !== "none" &&
+            (!!state.hoveredNode || !!state.clickedNode)) ||
+          !!state.suggestions
         );
       }
 
@@ -407,12 +450,6 @@
       renderer.on("clickNode", ({ node }) =>
         setClickedNode(nodeIsInteractive(node) ? node : undefined),
       );
-      renderer.on("doubleClickNode", ({ node }) => {
-        const url = graph.getNodeAttribute(node, "url");
-        if (url) {
-          window.open(url, "_blank", "noreferrer noopener");
-        }
-      });
       renderer.on("clickStage", () => setClickedNode(undefined));
 
       // =======================
