@@ -5,6 +5,7 @@ import { createLogger } from "./logger.js";
 import { Spider } from "./spider.js";
 import { HTMLParser } from "./parsers/html.js";
 import { CSSParser } from "./parsers/css.js";
+import { TagScanner } from "./scanners/tags.js";
 
 // https://stackoverflow.com/a/62892482
 import { fileURLToPath } from "node:url";
@@ -79,15 +80,41 @@ const main = async () => {
   // == Crawling ==
 
   // Initialize and start the spider
-  // TODO: Add scanners
   const spider = new Spider(config, seedUrls);
+  const scanners = [new TagScanner(config)];
   const result = await spider.crawl(
     {
       "text/html": new HTMLParser(config),
       "text/css": new CSSParser(config),
     },
-    [],
+    scanners,
   );
+
+  // Aggregate tags globally and pick colors deterministically
+  const tagsSet = new Set();
+  for (const [url, attrs] of Object.entries(result)) {
+    if (Array.isArray(attrs.tags)) {
+      for (const t of attrs.tags) tagsSet.add(t);
+    }
+  }
+  const tags = Array.from(tagsSet).sort();
+
+  // deterministic color generator based on string hash -> HSL
+  const hash = (s) => {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) {
+      h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0;
+    }
+    return h;
+  };
+
+  const tagsObj = {};
+  for (const t of tags) {
+    const h = hash(t) % 360;
+    // pastel-ish colors: high lightness, medium saturation
+    const color = `hsl(${h} 60% 72%)`;
+    tagsObj[t] = { color };
+  }
 
   // == Output ==
 
@@ -102,7 +129,7 @@ const main = async () => {
   // Write the result to outputDir/result.js
   fs.writeFileSync(
     `${config.outputDir}/result.js`,
-    `window.__RESULT__ = ${JSON.stringify(result, null, 0)};`,
+    `window.__RESULT__ = ${JSON.stringify(result, null, 0)};\nwindow.__TAGS__ = ${JSON.stringify(tagsObj, null, 0)};`,
   );
 
   // Copy files from template to outputDir

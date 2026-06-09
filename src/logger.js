@@ -1,7 +1,7 @@
 /**
  * Customized Winston Logger
  *
- * Last updated: 2026-01-26
+ * Last updated: 2026-06-08
  *
  * A Winston logger with customized logging formats and ephemeral status logging
  *
@@ -21,11 +21,13 @@ import winston from "winston";
 import colors from "@colors/colors/safe.js";
 import { LEVEL, MESSAGE } from "triple-beam";
 
-import * as defaultConfig from "./config.js";
-
 // Use singleton pattern for logger instance
 let logger = null;
-let config = defaultConfig;
+let config = {
+  quiet: false,
+  logLevel: process.env.LOG_LEVEL || "info",
+  timeFormat: "YYYY-MM-DD HH:mm:ss",
+};
 
 /** Create and configure a Winston logger instance. */
 export function createLogger(options = {}) {
@@ -51,7 +53,7 @@ export function createLogger(options = {}) {
 
   // The status logger must go first to add the newline for other loggers
   if (!config.quiet) {
-    logger.add(new ConsoleStatus({ level, format: consoleFormat }));
+    logger.add(new ConsoleStatus({ level }));
     logger.add(
       new ConsoleBasic({
         level,
@@ -68,7 +70,7 @@ export function createLogger(options = {}) {
 /** Get the logger instance for use. */
 export function getLogger() {
   if (!logger) {
-    logger = createLogger(defaultConfig);
+    logger = createLogger();
     logger.warn(
       "Logger not initialized with config. Using default configuration.",
     );
@@ -143,6 +145,10 @@ class ConsoleBasic extends winston.transports.Console {
   }
 }
 
+// Spinner frames based on https://github.com/sindresorhus/yocto-spinner
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const SPINNER_INTERVAL_MS = 100;
+
 // Based on `winston.transports.Console`
 class ConsoleStatus extends winston.transports.Console {
   constructor(options = {}) {
@@ -151,10 +157,14 @@ class ConsoleStatus extends winston.transports.Console {
     // Node.JS maps `process.stdout` to `console._stdout`.
     this._log = console._stdout ? console._stdout : process.stdout;
     this.recentLevel = "";
+    this.spinnerIndex = 0;
+    this.spinnerTimer = null;
+    this.statusInfo = null;
 
     // Add newline on exit if needed
     // https://stackoverflow.com/a/14032965
     this.handleExit = () => {
+      this.stopSpinner();
       if (this.recentLevel === "status") {
         this._log.write("\n");
       }
@@ -162,12 +172,49 @@ class ConsoleStatus extends winston.transports.Console {
     process.on("exit", this.handleExit);
   }
 
+  startSpinner() {
+    if (!this.spinnerTimer) {
+      this.spinnerTimer = setInterval(
+        () => this.renderStatus(),
+        SPINNER_INTERVAL_MS,
+      );
+      if (typeof this.spinnerTimer.unref === "function") {
+        this.spinnerTimer.unref();
+      }
+    }
+  }
+
+  stopSpinner() {
+    if (this.spinnerTimer) {
+      clearInterval(this.spinnerTimer);
+      this.spinnerTimer = null;
+    }
+    this.statusInfo = null;
+    this.spinnerIndex = 0;
+  }
+
+  renderStatus() {
+    if (!this.statusInfo) {
+      return;
+    }
+
+    const spinner = colors[this.statusInfo.level](SPINNER_FRAMES[this.spinnerIndex]);
+    this.spinnerIndex = (this.spinnerIndex + 1) % SPINNER_FRAMES.length;
+    const temp_info = structuredClone(this.statusInfo);
+    temp_info[LEVEL] = "status"; // Ensure level is status for formatting
+    temp_info.message = `${spinner} ${temp_info.message}`;
+    this._log.write(`\x1b[K${consoleFormat.transform(temp_info)[MESSAGE]}\r`);
+  }
+
   log(info, callback) {
     setImmediate(() => this.emit("logged", info));
 
     if (info[LEVEL] === "status") {
-      this._log.write(`\x1b[K${info[MESSAGE]}\r`);
+      this.statusInfo = info;
+      this.renderStatus();
+      this.startSpinner();
     } else if (this.recentLevel === "status") {
+      this.stopSpinner();
       // Add newline for a clean line for other logs
       this._log.write("\n");
     }

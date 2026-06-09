@@ -48,7 +48,7 @@
             data-hidden="true"
           ></button>
         </div>
-        <div id="search-suggestions" class="search-suggestions"></div>
+        <div id="search-suggestions" class="search-suggestions" aria-live="polite"></div>
         <select id="interactive-select">
           <option disabled>Interact with:</option>
           <option value="all" selected>All nodes</option>
@@ -417,8 +417,212 @@
       }
 
       // =======================
-      // Search
+      // Search (advanced multi-field search engine)
       // =======================
+      class SearchEngine {
+        constructor(items, options = {}) {
+          this.items = items || [];
+          // default fields to search when no field is specified
+          this.defaultFields = options.defaultFields || [
+            "title",
+            "label",
+            "url",
+            "desc",
+            "description",
+          ];
+        }
+
+        // Tokenize the query respecting quoted phrases (supports escaped quotes and backslashes)
+        // Also supports field:value where the value can be quoted (e.g. title:"Hello World").
+        // Note: a fully-quoted token like "a:b" remains quoted and will NOT be treated as a field search.
+        tokenize(query) {
+          const tokens = [];
+          let i = 0;
+          const N = query.length;
+          while (i < N) {
+            while (i < N && /\s/.test(query[i])) i++;
+            if (i >= N) break;
+
+            if (query[i] === '"') {
+              // Entire token is a quoted phrase: keep as quoted so we don't treat it as field:value
+              i++;
+              let buf = "";
+              while (i < N) {
+                if (query[i] === '\\' && i + 1 < N) {
+                  buf += query[i + 1];
+                  i += 2;
+                } else if (query[i] === '"') {
+                  i++;
+                  break;
+                } else {
+                  buf += query[i];
+                  i++;
+                }
+              }
+              tokens.push({ text: buf, quoted: true });
+              continue;
+            }
+
+            // Unquoted token: detect field: "quoted value" pattern and capture the quoted value as part
+            let start = i;
+            let pushed = false;
+            while (i < N && !/\s/.test(query[i])) {
+              if (query[i] === ':' && i + 1 < N && query[i + 1] === '"') {
+                // field name is query.slice(start, i)
+                const field = query.slice(start, i);
+                i += 2; // skip :"
+                let buf = "";
+                while (i < N) {
+                  if (query[i] === '\\' && i + 1 < N) {
+                    buf += query[i + 1];
+                    i += 2;
+                  } else if (query[i] === '"') {
+                    i++;
+                    break;
+                  } else {
+                    buf += query[i];
+                    i++;
+                  }
+                }
+                // push a single unquoted token with value unquoted (so later split on ':' works)
+                tokens.push({ text: `${field}:${buf}`, quoted: false });
+                pushed = true;
+                break;
+              }
+              i++;
+            }
+
+            if (!pushed) {
+              // Normal unquoted token
+              tokens.push({ text: query.slice(start, i), quoted: false });
+            }
+          }
+
+          return tokens
+            .map((t) => ({ ...t, text: t.text.trim() }))
+            .filter((t) => t.text.length > 0);
+        }
+
+        // Helper to get values for a field from an item (array or scalar)
+        getValues(item, field) {
+          if (!item) return [""];
+          const v = item[field];
+          if (v === undefined || v === null) return [""];
+          if (Array.isArray(v)) return v.map((x) => String(x));
+          return [String(v)];
+        }
+
+        // Main filter: returns matched items (AND across tokens)
+        filter(query) {
+          if (!query || !query.trim()) return this.items.slice();
+
+          const tokens = this.tokenize(query);
+
+          return this.items.filter((item) => {
+            return tokens.every((tok) => {
+              // If token was quoted, do NOT split field:value inside it
+              const raw = tok.text;
+              let field = null;
+              let value = raw;
+
+              if (!tok.quoted && raw.includes(":")) {
+                const idx = raw.indexOf(":");
+                field = raw.slice(0, idx);
+                value = raw.slice(idx + 1);
+              }
+
+              const fieldsToCheck = field ? [field] : this.defaultFields;
+
+              // Numeric comparison? formats like >10, <=3.5, etc.
+              const cmp = value.match(/^(<=|>=|<|>)(-?\d+(?:\.\d+)?)$/);
+              if (cmp) {
+                const op = cmp[1];
+                const num = parseFloat(cmp[2]);
+                return fieldsToCheck.some((f) =>
+                  this.getValues(item, f).some((val) => {
+                    const n = parseFloat(String(val).replace(/[^0-9\-\.]+/g, ""));
+                    if (Number.isNaN(n)) return false;
+                    switch (op) {
+                      case "<":
+                        return n < num;
+                      case ">":
+                        return n > num;
+                      case "<=":
+                        return n <= num;
+                      case ">=":
+                        return n >= num;
+                      default:
+                        return false;
+                    }
+                  }),
+                );
+              }
+
+              // Try regex (if valid), otherwise fallback to plain substring
+              let re = null;
+              try {
+                re = new RegExp(value, "i");
+              } catch (e) {
+                re = null;
+              }
+
+              return fieldsToCheck.some((f) =>
+                this.getValues(item, f).some((val) => {
+                  const s = String(val);
+                  if (re && re.test(s)) return true;
+                  return s.toLowerCase().includes(value.toLowerCase());
+                }),
+              );
+            });
+          });
+        }
+      }
+
+      // Instantiate search engine over the result set. Items keep their URL
+      const searchEngine = new SearchEngine(
+        Object.entries(window.__RESULT__ || {}).map(([url, attrs]) =>
+          Object.assign({ url }, attrs),
+        ),
+        { defaultFields: ["title", "label", "url", "desc", "description"] },
+      );
+
+      // Render prepared tags from the crawl (window.__TAGS__)
+      function renderPreparedTags() {
+        const container = document.getElementById("search-suggestions");
+        container.innerHTML = "";
+        const tags = window.__TAGS__ || {};
+        const keys = Object.keys(tags).sort();
+        if (keys.length === 0) {
+          container.style.display = "none";
+          return;
+        }
+        container.style.display = "block";
+
+        for (const k of keys) {
+          const info = tags[k] || {};
+          const btn = document.createElement("button");
+          btn.className = "suggested-tag";
+          btn.textContent = k;
+          btn.title = `Add tag ${k} to search`;
+          btn.style.background = info.color || "#ddd";
+          btn.style.border = "none";
+          btn.style.padding = "0.25rem 0.5rem";
+          btn.style.margin = "0.125rem";
+          btn.style.borderRadius = "0.25rem";
+          btn.style.cursor = "pointer";
+          btn.addEventListener("click", () => {
+            const current = searchInput.value?.trim();
+            const newQuery = current ? `${current} ${k}` : k;
+            setSearchQuery(newQuery);
+            searchInput.focus();
+          });
+          container.appendChild(btn);
+        }
+      }
+
+      // Initial render of tags
+      renderPreparedTags();
+
       function setSearchQuery(query) {
         state.searchQuery = query;
 
@@ -429,16 +633,8 @@
         if (!query) {
           state.suggestions = undefined;
         } else {
-          const lcQuery = query.toLowerCase();
-
-          const matches = Object.values(window.__RESULT__).filter(
-            ({ url, title }) =>
-              (title && title.toLowerCase().includes(lcQuery)) ||
-              url.toLowerCase().includes(lcQuery),
-          );
-
-          // Store suggestions set
-          state.suggestions = new Set(matches.map(({ url }) => url));
+          const matches = searchEngine.filter(query);
+          state.suggestions = new Set(matches.map((item) => item.url));
         }
 
         refresh();

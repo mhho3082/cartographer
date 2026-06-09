@@ -60,8 +60,15 @@ button {
 .search-suggestions {
   border: 1px solid #ccc;
   border-radius: 0.25rem;
+  padding: 0.5rem;
   height: 100%;
   overflow-y: auto;
+}
+
+.prepared-tag {
+  font-family: "IBM Plex Mono", monospace;
+  color: #222;
+  font-size: 0.9rem;
 }
 
 select {

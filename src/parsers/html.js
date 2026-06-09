@@ -23,6 +23,7 @@ export class HTMLParser {
     let base = undefined;
     const links = [];
     const problems = [];
+    let charset = undefined;
 
     // TODO: Handle embedded URLs in CSS within HTML
 
@@ -55,6 +56,16 @@ export class HTMLParser {
           ) {
             links.push(attribs.value);
           }
+
+          // Capture <meta charset="..."> or <meta http-equiv="Content-Type" content="...; charset=...">
+          if (name === "meta") {
+            if (attribs.charset) {
+              charset = attribs.charset;
+            } else if (attribs["http-equiv"] && attribs.content) {
+              const m = attribs.content.match(/charset=([^;\s]+)/i);
+              if (m) charset = m[1];
+            }
+          }
         },
         ontext(text) {
           if (!inBody && currentTag === "title") {
@@ -73,6 +84,6 @@ export class HTMLParser {
     parser.write(data);
     parser.end();
 
-    return { title, base, links, problems };
+    return { title, base, links, problems, charset };
   }
 }
