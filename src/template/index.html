@@ -124,6 +124,16 @@
         greyHide: "grey", // "grey" | "hide"
       };
 
+      const nodeColors = {
+        loading: "#ccc",       // placeholder before layout/colors are applied
+        scoreLow: "#c8e6ff",   // light blue  — low-connectivity nodes
+        scoreHigh: "#00429d",  // dark blue   — high-connectivity nodes
+        bad: "#ff6961",        // pastel red  — broken/bad nodes
+        redirect: "#cba3d6",   // pastel purple — redirects (3xx)
+        external: "#77dd77",   // pastel green  — external links
+        dimmed: "#f6f6f6",     // light gray  — non-selected nodes (grey-out mode)
+      };
+
       const state = {
         // Search
         searchQuery: "",
@@ -161,7 +171,7 @@
             x: Math.random(),
             y: Math.random(),
             size: 10,
-            color: "#ccc",
+            color: nodeColors.loading,
           });
         }
       }
@@ -208,18 +218,18 @@
 
         const colorScale = chroma
           // See https://gka.github.io/palettes to try out palettes
-          .scale(["#ffffe0", "#00429d"])
+          .scale([nodeColors.scoreLow, nodeColors.scoreHigh])
           .domain([min, max]);
 
         graph.forEachNode((node, attrs) => {
           let color;
 
           if (attrs.bad) {
-            color = "#ff6961"; // pastel red for bad nodes
+            color = nodeColors.bad;
           } else if (attrs.status >= 300 && attrs.status < 400) {
-            color = "#cba3d6"; // pastel purple for redirects
+            color = nodeColors.redirect;
           } else if (attrs.linkType === "external") {
-            color = "#77dd77"; // pastel green for external links
+            color = nodeColors.external;
           } else {
             color = colorScale(scores.get(node)).hex();
           }
@@ -402,7 +412,7 @@
       function greyOrHideEntity(res) {
         if (config.greyHide === "grey") {
           res.label = "";
-          res.color = "#f6f6f6";
+          res.color = nodeColors.dimmed;
         } else if (config.greyHide === "hide") {
           res.hidden = true;
         }

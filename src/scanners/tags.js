@@ -132,13 +132,6 @@ export class TagScanner {
       out.xPoweredBy = xPoweredBy;
     }
 
-    // Compression / Content-Encoding
-    if (attrs.encoding) {
-      tags.push(`compressed:${attrs.encoding}`);
-    } else if (!attrs.encoding && out.contentType) {
-      tags.push("compressed:none");
-    }
-
     // Deduplicate tags
     const unique = [...new Set(tags)];
 
