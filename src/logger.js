@@ -101,6 +101,15 @@ colors.setTheme({
   silly: ["gray", "bold"],
 });
 
+// Spinner frames based on https://github.com/sindresorhus/yocto-spinner
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const SPINNER_INTERVAL_MS = 100;
+
+// The status line prefixes its message with a spinner frame and a space.
+// Non-status console logs are indented by the same width so their messages
+// line up with the status message despite the spinner.
+const CONSOLE_INDENT = " ".repeat(SPINNER_FRAMES[0].length + 1);
+
 /** Custom file logging format */
 const fileFormat = winston.format.combine(
   winston.format.errors({ stack: true }),
@@ -113,41 +122,38 @@ const consoleFormat = winston.format.combine(
   winston.format.errors({ stack: true }),
   winston.format.timestamp({ format: config.timeFormat }),
   winston.format.padLevels({ levels }),
-  winston.format.printf(
-    (info) =>
+  winston.format.printf((info) => {
+    const indent = info[LEVEL] === "status" ? "" : CONSOLE_INDENT;
+    return (
       colors.gray(info.timestamp) +
       " " +
       colors[info.level]("[" + info.level.toUpperCase() + "]") +
       " " +
-      (info.stack ? `${info.stack}` : info.message),
-  ),
+      indent +
+      (info.stack ? `${info.stack}` : info.message)
+    );
+  }),
 );
 
-// Basic transports to ignore status logs
+// Status logs are handled solely by `ConsoleStatus`; every other transport
+// drops them (and never writes them to files) while passing the rest through.
+function logIgnoringStatus(superLog, info, callback) {
+  if (info[LEVEL] === "status") {
+    callback(); // eslint-disable-line callback-return
+    return true;
+  }
+  return superLog(info, callback);
+}
 class FileBasic extends winston.transports.File {
   log(info, callback) {
-    if (info[LEVEL] !== "status") {
-      return super.log(info, callback);
-    } else {
-      callback(); // eslint-disable-line callback-return
-      return true;
-    }
+    return logIgnoringStatus(super.log.bind(this), info, callback);
   }
 }
 class ConsoleBasic extends winston.transports.Console {
   log(info, callback) {
-    if (info[LEVEL] !== "status") {
-      return super.log(info, callback);
-    } else {
-      callback(); // eslint-disable-line callback-return
-      return true;
-    }
+    return logIgnoringStatus(super.log.bind(this), info, callback);
   }
 }
-
-// Spinner frames based on https://github.com/sindresorhus/yocto-spinner
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const SPINNER_INTERVAL_MS = 100;
 
 // Based on `winston.transports.Console`
 class ConsoleStatus extends winston.transports.Console {
@@ -200,8 +206,11 @@ class ConsoleStatus extends winston.transports.Console {
 
     const spinner = colors[this.statusInfo.level](SPINNER_FRAMES[this.spinnerIndex]);
     this.spinnerIndex = (this.spinnerIndex + 1) % SPINNER_FRAMES.length;
+    // `structuredClone` drops symbol keys, so re-tag the level for formatting.
     const temp_info = structuredClone(this.statusInfo);
-    temp_info[LEVEL] = "status"; // Ensure level is status for formatting
+    temp_info[LEVEL] = "status";
+    // Spinner frame + space; `CONSOLE_INDENT` matches this width so non-status
+    // logs align with the status message text.
     temp_info.message = `${spinner} ${temp_info.message}`;
     this._log.write(`\x1b[K${consoleFormat.transform(temp_info)[MESSAGE]}\r`);
   }
