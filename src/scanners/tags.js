@@ -37,7 +37,7 @@ export class TagScanner {
     // content-encoding header -> attribute 'encoding'
     const encoding =
       res.headers &&
-      (res.headers["content-encoding"] || res.headers["content-encoding"]);
+      (res.headers["content-encoding"] || res.headers["transfer-encoding"]);
     if (encoding) {
       tags.push(`encoding:${encoding}`);
       out.encoding = encoding;

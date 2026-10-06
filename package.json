@@ -1,17 +1,31 @@
 {
   "name": "cartographer",
   "version": "0.1.0",
-  "description": "",
+  "description": "CLI web spider that generates an interactive network graph report of a website's links",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "clean": "rm -rf ./*.log"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "web-crawler",
+    "spider",
+    "link-checker",
+    "network-graph",
+    "sigma"
+  ],
+  "author": "Max Ho",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mhho3082/cartographer"
+  },
   "dependencies": {
+    "@colors/colors": "^1.6.0",
     "axios": "^1.13.2",
     "css": "^3.0.0",
     "htmlparser2": "^10.0.0",

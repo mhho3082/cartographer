@@ -22,10 +22,7 @@ export class HTMLParser {
     let title = "";
     let base = undefined;
     const links = [];
-    const problems = [];
     let charset = undefined;
-
-    // TODO: Handle embedded URLs in CSS within HTML
 
     let currentTag = null;
     let inBody = false;
@@ -84,6 +81,6 @@ export class HTMLParser {
     parser.write(data);
     parser.end();
 
-    return { title, base, links, problems, charset };
+    return { title, base, links, charset };
   }
 }
