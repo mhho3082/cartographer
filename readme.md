@@ -4,6 +4,10 @@ A CLI web spider that crawls a website and generates a self-contained, interacti
 
 ![screenshot](.github/screenshot.png)
 
+## Why
+
+At a previous job we needed to validate pre-launch websites — checking for broken links and verifying content before going live. The tool we had worked, but surfaced everything as a flat list, which was slow to scan. A graph makes the site structure immediately visible and problem pages much easier to spot in context.
+
 ## Features
 
 - Crawls all internal links from one or more seed URLs
